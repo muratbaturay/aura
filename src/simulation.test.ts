@@ -102,7 +102,7 @@ describe('events', () => {
   });
 
   it('logs moderate fall risk too, with its band as the severity', () => {
-    const snaps = run(3, { ...TEST_SCENARIO, useWearables: false, keyframes: { mobility: [[0, 45], [23, 45]] } });
+    const snaps = run(3, { ...TEST_SCENARIO, useWearables: false, keyframes: { mobility: [[0, 35], [23, 35]] } });
     const fall = snaps.flatMap(s => s.events).filter(e => e.label === 'Fall risk elevated');
     expect(fall.length).toBeGreaterThan(0);
     expect(fall.some(e => e.urgency === 'Medium')).toBe(true);
@@ -130,5 +130,36 @@ describe('events', () => {
     const e = story('uti')[16].events.find(ev => ev.label === 'Confusion signs');
     expect(e?.urgency).toBe('Low');
     expect(e?.detail).toMatch(/main driver/i);
+  });
+});
+
+describe('random days sleep', () => {
+  const days = (start = defaultState(), n = 120) =>
+    Array.from({ length: n }, (_, i) => simulate24h(DEFAULT_BASELINE, start, { rng: createRng(i + 1) }));
+  const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+  const NIGHT = [0, 1, 2, 3, 4, 5, 22, 23];
+
+  it('settles at night: restlessness averages below 25 between 01:00 and 04:00', () => {
+    const r = days().flatMap(d => [1, 2, 3, 4].map(h => d[h].state.restlessness));
+    expect(mean(r)).toBeLessThan(25);
+  });
+
+  it('stays near her usual levels through the day', () => {
+    const day = days().flatMap(d => d.slice(9, 20));
+    expect(Math.abs(mean(day.map(s => s.state.restlessness)) - 25)).toBeLessThan(8);
+    expect(Math.abs(mean(day.map(s => s.state.mobility)) - 70)).toBeLessThan(8);
+  });
+
+  it('gets up on a minority of night hours', () => {
+    const nights = days().flatMap(d => NIGHT.map(h => d[h]));
+    const share = nights.filter(s => s.events.some(e => e.label === 'Bed exit detected')).length / nights.length;
+    expect(share).toBeGreaterThan(0.03);
+    expect(share).toBeLessThan(0.35);
+  });
+
+  it('reads High fall risk on well under half the night hours for a frail resident', () => {
+    const nights = days({ ...defaultState(), mobility: 25, restlessness: 60 }).flatMap(d => NIGHT.map(h => d[h]));
+    const share = nights.filter(s => s.risks.fall >= 70).length / nights.length;
+    expect(share).toBeLessThan(0.4);
   });
 });

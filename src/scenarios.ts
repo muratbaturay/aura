@@ -51,7 +51,7 @@ export const SCENARIOS: Scenario[] = [
     chapters: [{ hour: 1, title: 'Confusion begins' }, { hour: 2, title: 'Bed exits' }, { hour: 4, title: 'Escalated' }, { hour: 14, title: 'Recovering' }],
     keyframes: {
       speechDrift: [[0, 22], [2, 45], [5, 72], [7, 85], [11, 85], [17, 45], [21, 28], [23, 25]],
-      restlessness: [[0, 30], [2, 60], [4, 72], [8, 50], [14, 32], [20, 22], [22, 15]],
+      restlessness: [[0, 30], [2, 64], [3, 74], [5, 76], [8, 50], [14, 32], [20, 22], [22, 15]],
       mobility: [[0, 68], [5, 52], [12, 52], [18, 64], [21, 70]],
       heartRate: [[0, 76], [3, 98], [6, 114], [11, 116], [15, 94], [23, 84]],
     },

@@ -21,6 +21,19 @@ const VITALS_FLOOR: Record<VitalsFlag, number> = { none: 0, amber: 40, red: 70 }
  * signal they come from. computeRisks sums these and buildExplanation
  * attributes them, so the explanation cannot drift from the score.
  */
+/** Share of fall vulnerability that remains while asleep in bed. */
+const ASLEEP_SHARE = 0.35;
+
+/**
+ * Share of the hour she is out of bed, 0–1. Awake hours count as up; at night it
+ * follows restlessness: calm sleep (≤ 25) is 0, the bed-exit level (55) about
+ * two thirds, and 70 or more a full hour up.
+ */
+export function timeUp(state: CurrentState, baseline: ResidentBaseline): number {
+  if (!isNightHour(state.timeOfDay, baseline)) return 1;
+  return Math.max(0, Math.min(1, (state.restlessness - 25) / 45));
+}
+
 export function riskTerms(
   state: CurrentState,
   deviations: Deviations,
@@ -29,18 +42,22 @@ export function riskTerms(
   const night = isNightHour(state.timeOfDay, baseline);
 
   // ── Fall Risk ──
+  // Vulnerability counts in full while she is up; asleep in bed a third remains
+  // (falls from bed are real). Being up at night adds its own risk.
+  const up = timeUp(state, baseline);
+  const exposure = ASLEEP_SHARE + (1 - ASLEEP_SHARE) * up;
   const fall: RiskTerm[] = [
     // Lower mobility stability → higher risk, amplified below personal baseline
-    { signal: 'mobility', points: (100 - state.mobility) * 0.35 + Math.max(0, deviations.mobility) * 5 },
+    { signal: 'mobility', points: exposure * ((100 - state.mobility) * 0.35 + Math.max(0, deviations.mobility) * 5) },
     // Higher restlessness → higher risk, amplified above personal baseline
-    { signal: 'restlessness', points: state.restlessness * 0.20 + Math.max(0, deviations.restlessness) * 3 },
-    // Night amplifier
-    { signal: 'night', points: night ? 18 : 0 },
+    { signal: 'restlessness', points: exposure * (state.restlessness * 0.20 + Math.max(0, deviations.restlessness) * 3) },
+    // Out of bed at night (dark, drowsy)
+    { signal: 'night', points: night ? 18 * up : 0 },
   ];
   // Vitals influence
   if (state.useWearables) {
-    fall.push({ signal: 'heartRate', points: Math.max(0, state.heartRate - 110) * 0.5 });
-    fall.push({ signal: 'spO2', points: Math.max(0, 92 - state.spO2) * 3 });
+    fall.push({ signal: 'heartRate', points: exposure * Math.max(0, state.heartRate - 110) * 0.5 });
+    fall.push({ signal: 'spO2', points: exposure * Math.max(0, 92 - state.spO2) * 3 });
   }
 
   // ── Cognitive Concern Signal ──
@@ -113,7 +130,7 @@ const SIGNAL_LABELS: Record<RiskSignal, string> = {
   restlessness: 'Restlessness',
   speech: 'Speech clarity drift',
   social: 'Social isolation',
-  night: 'Nighttime hours',
+  night: 'Up at night',
   activity: 'Low overall activity',
   heartRate: 'Heart rate',
   spO2: 'Blood oxygen (SpO2)',

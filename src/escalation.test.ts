@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { CurrentState } from './types';
 import { DEFAULT_BASELINE, defaultState, computeDeviations } from './baseline';
-import { computeRisks, urgencyBand, vitalsFlag, buildExplanation } from './risk';
+import { computeRisks, urgencyBand, vitalsFlag, buildExplanation, timeUp } from './risk';
 import { selectIntervention } from './intervention';
 
 // Default state: 14:00, all signals at baseline, staff load 40, wearables off.
@@ -259,5 +259,37 @@ describe('explanation', () => {
   it('does not cite staff load as a reason, since it no longer affects the decision', () => {
     const factors = evaluate({ staffLoad: 90 }).explanation.topFactors.map(f => f.factor);
     expect(factors.join(' ')).not.toMatch(/staff/i);
+  });
+});
+
+describe('fall risk counts time up', () => {
+  const at = (hour: number, patch: Partial<CurrentState>) => evaluate({ timeOfDay: hour, ...patch });
+
+  it.each([
+    [14, 20, 1], [3, 20, 0], [3, 25, 0], [3, 70, 1], [3, 90, 1],
+  ] as const)('at %s:00 with restlessness %s she is up %s of the hour', (hour, restlessness, expected) => {
+    expect(timeUp({ ...defaultState(), timeOfDay: hour, restlessness }, DEFAULT_BASELINE)).toBeCloseTo(expected, 6);
+  });
+
+  it('is partly up at the bed-exit threshold', () => {
+    const up = timeUp({ ...defaultState(), timeOfDay: 3, restlessness: 55 }, DEFAULT_BASELINE);
+    expect(up).toBeGreaterThan(0.5);
+    expect(up).toBeLessThan(0.8);
+  });
+
+  it('scores a frail resident asleep at 03:00 lower than awake at 14:00', () => {
+    const frail = { mobility: 30, restlessness: 20 };
+    expect(at(3, frail).risks.fall).toBeLessThan(at(14, frail).risks.fall);
+  });
+
+  it('scores her up at 03:00 at least as high as in the day', () => {
+    const up = { mobility: 30, restlessness: 80 };
+    expect(at(3, up).risks.fall).toBeGreaterThanOrEqual(at(14, up).risks.fall);
+  });
+
+  it('cites "Up at night" only when she is out of bed', () => {
+    const names = (r: number) => at(3, { restlessness: r, mobility: 40 }).explanation.factors.map(f => f.factor).join(' ');
+    expect(names(20)).not.toMatch(/up at night/i);
+    expect(names(80)).toMatch(/up at night/i);
   });
 });
