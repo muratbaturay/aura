@@ -8,8 +8,8 @@ const slider = (id: string, label: string) => `
 
 const domain = (id: string, name: string) => `
           <div class="domain-row">
-            <div class="domain-head"><span class="domain-name">${name}</span><span id="${id}Band" class="domain-band"></span><span id="${id}Value" class="domain-value"></span></div>
-            <div class="domain-track"><div id="${id}Fill" class="domain-fill"></div><span class="band-tick" style="left:40%"></span><span class="band-tick" style="left:70%"></span></div>
+            <div class="domain-head"><span class="domain-name">${name}</span><span id="${id}Usual" class="domain-usual"></span><span id="${id}Band" class="domain-band"></span><span id="${id}Value" class="domain-value"></span></div>
+            <div class="domain-track"><div id="${id}Fill" class="domain-fill"></div><span class="band-tick" style="left:40%"></span><span class="band-tick" style="left:70%"></span><span id="${id}UsualTick" class="usual-tick" aria-hidden="true"></span></div>
           </div>`;
 
 const ladderStep = (level: number, label: string) =>
@@ -22,9 +22,15 @@ export function buildHTML(): string {
   <div class="header-inner">
     <div class="brand">${icons.brand}<span class="wordmark">aura</span></div>
     <div class="header-divider"></div>
-    <div class="resident">
-      <span class="resident-name">Eleanor, 82</span>
-      <span id="residentSub" class="resident-sub">Care view</span>
+    <div class="resident-switch">
+      <button type="button" id="btnResident" class="resident-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="residentMenu">
+        <span class="resident-text">
+          <span id="residentName" class="resident-name">Eleanor, 82</span>
+          <span id="residentSub" class="resident-sub">Care view</span>
+        </span>
+        ${icons.chevron}
+      </button>
+      <div id="residentMenu" class="resident-menu" role="listbox" aria-label="Residents" hidden></div>
     </div>
     <div class="header-spacer"></div>
     <span id="storyChip" class="story-chip" hidden>
@@ -160,7 +166,7 @@ export function buildHTML(): string {
   <div class="btn-row">
     <button id="btnSimulate" class="btn btn-primary btn-play">${icons.play}<span id="btnSimulateLabel">Play</span></button>
     <button id="btnRandomize" class="btn btn-secondary">Randomize</button>
-    <button id="btnReset" class="btn btn-ghost">Reset</button>
+    <button id="btnReset" class="btn btn-ghost">Reset to usual</button>
   </div>
 
   <details class="studio-section" open>

@@ -4,13 +4,14 @@ import type {
   EnrichedInterventionOutput, MessageSource, InterventionOutput,
   RiskScores, ExplanationOutput, InterventionLevel,
 } from './types';
-import { DEFAULT_BASELINE, defaultState, computeDeviations } from './baseline';
-import { computeRisks, urgencyBand, buildExplanation } from './risk';
+import { DEFAULT_BASELINE, defaultState } from './baseline';
+import { urgencyBand } from './risk';
+import { assess, type Assessment } from './assessment';
 import { selectIntervention } from './intervention';
 import { simulate24h, startStateFor } from './simulation';
 import { createRng, randomSeed, parseSeed } from './rng';
 import { SCENARIOS } from './scenarios';
-import { ELEANOR, residentById } from './residents';
+import { ELEANOR, RESIDENTS, residentById, type Resident } from './residents';
 import { haloView, scoreBarSegments } from './view';
 import { themeFor, partOfDay, resolveTheme, loadThemePreference, saveThemePreference, type ThemePreference } from './theme';
 import { eventLanes, hourEvents } from './lanes';
@@ -30,7 +31,8 @@ import type { LLMStatus } from './engine/llmMessaging';
 import './style.css';
 
 // ── State ───────────────────────────────────────────────────
-let state: CurrentState = defaultState();
+let resident: Resident = ELEANOR;               // whose room this is
+let state: CurrentState = { ...ELEANOR.usual };
 let highStreak = 0;
 let timelineEvents: TimelineEvent[] = [];
 let simSnapshots: SimulationSnapshot[] = [];
@@ -54,13 +56,6 @@ let speedMs = 120;             // playback interval per simulated hour
 let lastIntervention: InterventionOutput | null = null;
 let lastExplanation: ExplanationOutput | null = null;
 let lastRisks: RiskScores | null = null;
-
-const residentProfile: ResidentProfile = {
-  age: 82,
-  name: 'Eleanor',
-  mobilityBaseline: DEFAULT_BASELINE.mobilityMean,
-  cognitiveConcernLevel: 'Low',
-};
 
 // ── LLM Controller (single instance) ────────────────────────
 const llm = createLLMController(600);
@@ -127,6 +122,7 @@ const studio = createDrawer(
 );
 document.getElementById('btnStudio')!.addEventListener('click', () => studio.open());
 document.getElementById('btnStudioClose')!.addEventListener('click', () => studio.close());
+setupResidentMenu();
 setupScenarioUI();
 setupPlaybackBar();
 setupRing(document.getElementById('ringCard')!);
@@ -271,7 +267,12 @@ function buildLLMContext(
   interventionLevel: 1 | 2 | 3 | 4,
   topFactors: string[]
 ): LLMMessageContext {
-  residentProfile.cognitiveConcernLevel = urgencyBand(risks.cognitive);
+  const residentProfile: ResidentProfile = {
+    name: resident.name,
+    age: resident.age,
+    mobilityBaseline: resident.usual.mobility,
+    cognitiveConcernLevel: urgencyBand(risks.cognitive),
+  };
 
   return {
     residentProfile,
@@ -367,10 +368,11 @@ function rerenderMessagePanels() {
 
 // ── Core Update (deterministic only — no LLM calls here) ───
 function update() {
-  const devs = computeDeviations(DEFAULT_BASELINE, state);
-  const risks = computeRisks(state, devs, DEFAULT_BASELINE);
-  const intervention = selectIntervention(state, risks, highStreak);
-  const explanation = buildExplanation(state, devs, risks, DEFAULT_BASELINE);
+  // Change from her usual drives the ladder, the halo and the explanation
+  const assessment = assess(state, resident);
+  const risks = assessment.alert;
+  const intervention = selectIntervention(state, risks, highStreak, resident);
+  const explanation = assessment.explanation;
 
   // Cache for LLM panel re-renders
   lastIntervention = intervention;
@@ -378,7 +380,7 @@ function update() {
   lastRisks = risks;
 
   renderHeader();
-  renderStatus(risks, intervention);
+  renderStatus(assessment, intervention);
   renderDay(intervention.level);
   dispatchAck({ type: 'level', level: intervention.level, now: Date.now() });
 
@@ -404,7 +406,7 @@ function update() {
   renderExplanation(explanation, enriched);
 
   // Charts
-  renderComparisonChart(document.getElementById('comparisonChart')!, DEFAULT_BASELINE, state);
+  renderComparisonChart(document.getElementById('comparisonChart')!, resident.baseline, state);
   renderTimelineChart(document.getElementById('timelineChart')!, simSnapshots);
 
   // Event feed
@@ -429,7 +431,7 @@ function renderIntervention(intervention: EnrichedInterventionOutput) {
     </div>`;
   const rows = [];
   if (intervention.residentMessage) {
-    rows.push(row(icons.speaker, 'Said to Eleanor', `<p class="doing-quote">“${escapeHtml(intervention.residentMessage)}”</p>`));
+    rows.push(row(icons.speaker, `Said to ${resident.name}`, `<p class="doing-quote">“${escapeHtml(intervention.residentMessage)}”</p>`));
   }
   if (intervention.staffMessage) {
     const label = intervention.level === 4 ? `Priority to staff · ${time}` : `Sent to staff · ${time}`;
@@ -538,26 +540,28 @@ function renderHeader() {
 }
 
 /** Update the status card in place (re-rendering would restart the halo's breathing). */
-function renderStatus(risks: RiskScores, intervention: InterventionOutput) {
+function renderStatus(a: Assessment, intervention: InterventionOutput) {
   const card = document.getElementById('statusCard')!;
   const halo = haloView(intervention.level);
   card.dataset.level = String(intervention.level);
   card.style.setProperty('--halo-color', `var(${halo.colorVar})`);
   card.style.setProperty('--halo-period', `${halo.periodSec}s`);
 
-  document.getElementById('haloScore')!.textContent = String(Math.round(risks.overall));
+  document.getElementById('haloScore')!.textContent = String(Math.round(a.alert.overall));
   document.getElementById('statusPill')!.textContent =
-    `Level ${intervention.level} · ${urgencyBand(risks.overall)}`;
+    `Level ${intervention.level} · ${urgencyBand(a.alert.overall)}`;
   document.getElementById('statusLabel')!.textContent = intervention.levelLabel;
 
-  const domains: [string, number][] = [['fall', risks.fall], ['cognitive', risks.cognitive], ['loneliness', risks.loneliness]];
-  for (const [id, score] of domains) {
-    const band = urgencyBand(score);
+  // Bars show how risky she is now, with a tick at her usual; the band is the change
+  for (const id of ['fall', 'cognitive', 'loneliness'] as const) {
+    const band = urgencyBand(a.alert[id]);
     const fill = document.getElementById(`${id}Fill`)!;
-    fill.style.width = `${Math.min(100, score)}%`;
+    fill.style.width = `${Math.min(100, a.standing[id])}%`;
     fill.dataset.band = band;
+    document.getElementById(`${id}UsualTick`)!.style.left = `${Math.min(100, a.usual[id])}%`;
+    document.getElementById(`${id}Usual`)!.textContent = `usual ${Math.round(a.usual[id])}`;
     document.getElementById(`${id}Band`)!.textContent = band;
-    document.getElementById(`${id}Value`)!.textContent = String(Math.round(score));
+    document.getElementById(`${id}Value`)!.textContent = String(Math.round(a.standing[id]));
   }
 
   document.getElementById('ladder')!.querySelectorAll<HTMLElement>('.ladder-step').forEach(step => {
@@ -617,6 +621,62 @@ function renderDayLog() {
 }
 
 // ── Simulation ──────────────────────────────────────────────
+// ── Residents ───────────────────────────────────────────────
+function setupResidentMenu() {
+  const btn = document.getElementById('btnResident')!;
+  const menu = document.getElementById('residentMenu')!;
+  menu.innerHTML = RESIDENTS.map(r => `
+    <button type="button" role="option" class="resident-option" data-id="${r.id}" aria-selected="false">
+      <span class="resident-option-name">${escapeHtml(r.name)}, ${r.age}</span>
+      <span class="resident-option-summary">${escapeHtml(r.summary)}</span>
+    </button>`).join('');
+  const close = (refocus: boolean) => {
+    menu.hidden = true;
+    btn.setAttribute('aria-expanded', 'false');
+    if (refocus) btn.focus();
+  };
+  btn.addEventListener('click', () => {
+    const open = menu.hidden;
+    menu.hidden = !open;
+    btn.setAttribute('aria-expanded', String(open));
+    if (open) menu.querySelector<HTMLButtonElement>('[aria-selected="true"]')?.focus();
+  });
+  menu.addEventListener('click', e => {
+    const opt = (e.target as HTMLElement).closest<HTMLButtonElement>('.resident-option');
+    if (!opt) return;
+    close(true);
+    if (opt.dataset.id !== resident.id) selectResident(opt.dataset.id!);
+  });
+  menu.addEventListener('keydown', e => { if (e.key === 'Escape') { e.preventDefault(); close(true); } });
+  document.addEventListener('click', e => {
+    if (!menu.hidden && !(e.target as HTMLElement).closest('.resident-switch')) close(false);
+  });
+  renderResident();
+}
+
+function renderResident() {
+  document.getElementById('residentName')!.textContent = `${resident.name}, ${resident.age}`;
+  document.querySelectorAll<HTMLButtonElement>('#residentMenu .resident-option').forEach(o =>
+    o.setAttribute('aria-selected', String(o.dataset.id === resident.id)));
+}
+
+/** Switch rooms: any run ends and her usual levels load (the clock stays where it is). */
+function selectResident(id: string) {
+  leaveRun();
+  dispatchAck({ type: 'reset' });
+  lastRun = null;
+  resident = residentById(id);
+  state = { ...resident.usual, timeOfDay: state.timeOfDay };
+  highStreak = 0;
+  lastLLMMessages = null;
+  prevSignature = '';
+  stopLLMWork();
+  syncSlidersFromState();
+  syncWearablesUI();
+  renderResident();
+  update();
+}
+
 function setupScenarioUI() {
   const LEVEL_FILL: Record<number, string> = { 1: 'var(--c-level-1)', 2: 'var(--c-level-2)', 3: 'var(--c-level-3)', 4: 'var(--c-level-4)' };
   // Each story card previews its whole day at the default seed
@@ -624,7 +684,7 @@ function setupScenarioUI() {
     .concat(SCENARIOS.map(sc => {
       const levels = simulate24h(residentById(sc.residentId), defaultState(), { rng: createRng(sc.seed), scenario: sc })
         .map(snap => snap.intervention.level);
-      return { id: sc.id, name: sc.name, description: sc.description, meta: `peaks at L${Math.max(...levels)} · seed ${sc.seed}`, arc: levels };
+      return { id: sc.id, name: sc.name, description: sc.description, meta: `${residentById(sc.residentId).name} · peaks at L${Math.max(...levels)} · seed ${sc.seed}`, arc: levels };
     }));
   const list = document.getElementById('storyList')!;
   list.innerHTML = cards.map(c => `
@@ -638,6 +698,7 @@ function setupScenarioUI() {
   const select = (id: string) => {
     selectedScenarioId = id;
     const scenario = SCENARIOS.find(sc => sc.id === id);
+    if (scenario && scenario.residentId !== resident.id) selectResident(scenario.residentId);
     list.querySelectorAll<HTMLButtonElement>('.story-card').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.id === id)));
     seedInput.value = scenario ? String(scenario.seed) : '';
     document.getElementById('seedNote')!.textContent = '';
@@ -703,7 +764,8 @@ function runSimulation() {
 
   const start = startStateFor(seed, state, lastRun);
   lastRun = { seed, start: { ...start } };
-  runSnapshots = simulate24h(scenario ? residentById(scenario.residentId) : ELEANOR, start, { rng: createRng(seed), scenario });
+  if (scenario && scenario.residentId !== resident.id) selectResident(scenario.residentId);
+  runSnapshots = simulate24h(resident, start, { rng: createRng(seed), scenario });
   runComplete = false;
   runChapters = scenario?.chapters ?? levelChapters(runSnapshots.map(sn => sn.intervention.level));
   buildChapters();
@@ -841,7 +903,7 @@ function renderPlaybackBar() {
 function resetAll() {
   leaveRun();
   dispatchAck({ type: 'reset' });
-  state = defaultState();
+  state = { ...resident.usual };
   highStreak = 0;
   timelineEvents = [];
   simSnapshots = [];

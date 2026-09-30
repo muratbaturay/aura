@@ -88,13 +88,13 @@ function buildUserPrompt(ctx: LLMMessageContext): string {
 - Mobility baseline: ${ctx.residentProfile.mobilityBaseline}/100
 - Cognitive concern level: ${ctx.residentProfile.cognitiveConcernLevel}
 - Time: ${timeStr} (${isNight ? 'nighttime' : 'daytime'})
-- Fall risk: ${Math.round(ctx.riskScores.fall)}% (${urgencyBand(ctx.riskScores.fall)})
-- Cognitive concern signal: ${Math.round(ctx.riskScores.cognitive)}% (${urgencyBand(ctx.riskScores.cognitive)})
-- Loneliness risk: ${Math.round(ctx.riskScores.loneliness)}% (${urgencyBand(ctx.riskScores.loneliness)})
-- Overall urgency: ${Math.round(ctx.riskScores.overall)}% (${urgencyBand(ctx.riskScores.overall)})
+- Fall risk vs usual: ${Math.round(ctx.riskScores.fall)}/100 (${urgencyBand(ctx.riskScores.fall)})
+- Cognitive concern vs usual: ${Math.round(ctx.riskScores.cognitive)}/100 (${urgencyBand(ctx.riskScores.cognitive)})
+- Loneliness vs usual: ${Math.round(ctx.riskScores.loneliness)}/100 (${urgencyBand(ctx.riskScores.loneliness)})
+- Overall urgency: ${Math.round(ctx.riskScores.overall)}/100 (${urgencyBand(ctx.riskScores.overall)})
 - Intervention level: ${ctx.interventionLevel} — ${LEVEL_LABELS[ctx.interventionLevel]}
 - Top contributing factors: ${ctx.topContributingFactors.join(', ')}
-- Staff load: ${Math.round(ctx.staffLoad)}%
+- Staff load: ${Math.round(ctx.staffLoad)}/100
 ${vitalsNote}
 
 Generate the JSON response following the system rules.`;

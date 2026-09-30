@@ -438,6 +438,23 @@
   color: var(--c-text);
 }
 
+.domain-usual {
+  font-size: var(--fs-xs);
+  color: var(--c-text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.usual-tick {
+  position: absolute;
+  top: -4px;
+  width: 2px;
+  height: 16px;
+  border-radius: 1px;
+  background: var(--c-text);
+  opacity: 0.55;
+  transform: translateX(-1px);
+}
+
 .domain-band {
   font-size: var(--fs-xs);
   color: var(--c-text-muted);

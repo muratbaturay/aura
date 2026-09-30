@@ -91,10 +91,89 @@ body {
   background: var(--c-border);
 }
 
-.resident {
+.resident-switch {
+  position: relative;
+}
+
+.resident-btn {
+  min-height: 44px;
+  padding: 4px 10px 4px 8px;
+  margin-left: -8px;
+  border: 1px solid transparent;
+  border-radius: var(--r-lg);
+  background: transparent;
+  color: var(--c-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.resident-btn:hover,
+.resident-btn[aria-expanded="true"] {
+  border-color: var(--c-border);
+  background: var(--c-bg-raised);
+}
+
+.resident-btn svg {
+  color: var(--c-text-dim);
+}
+
+.resident-text {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.resident-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: -8px;
+  z-index: 60;
+  width: 300px;
+  padding: 6px;
+  border-radius: var(--r-lg);
+  background: var(--c-bg-raised);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.resident-option {
+  min-height: 44px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--c-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.resident-option:hover {
+  background: var(--c-bg-inset);
+}
+
+.resident-option[aria-selected="true"] {
+  background: var(--c-bg-inset);
+  box-shadow: inset 3px 0 0 var(--c-text);
+}
+
+.resident-option-name {
+  font-size: var(--fs-base);
+  font-weight: var(--fw-semibold);
+}
+
+.resident-option-summary {
+  font-size: 12px;
+  color: var(--c-text-dim);
 }
 
 .resident-name {

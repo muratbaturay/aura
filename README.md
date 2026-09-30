@@ -4,9 +4,11 @@ A browser-based simulator that models an ambient AI system for assisted-living e
 
 ## Features
 
+- **Residents** — Four residents with their own normals: *Eleanor, 82* (independent, steady), *Walter, 88* (frail, history of falls, often up at night; bed-exit alert in his care plan), *Margaret, 79* (early dementia, more restless in the evening; bed-exit alert) and *Joseph, 85* (recently widowed and withdrawn; COPD, wears a monitor). Switch from the header; each story belongs to one of them.
+- **Change-From-Normal Alerts** — The ladder responds to how far she is above *her own* usual level at that hour, not to absolute risk: `alert = 1.5 × 100 × (now − usual) / (100 − usual)` per area, combined as worst + 0.2 × second. At night, fall risk is compared with her usual when up as much as she is now, so a bathroom trip is not an alarm. Absolute red flags still escalate whatever her normal: amber/red vitals, being up at night with a care-plan bed-exit alert, or very unsteady (standing fall risk ≥ 85). Scores are indices, not percentages.
 - **Dusk & Dawn Care View** — Three columns: the resident's status, their day, and why AURA acted / what it is doing, with the day log across the bottom. A header switch picks the theme: **Light** (default), **Dark** (a dim, warm, night-safe palette) or **Follow the clock** (dark from 22:00 to 06:00); the choice is remembered. Type: Bricolage Grotesque for headings, numbers and big type; Instrument Sans for text; IBM Plex Mono for times and points; Fraunces italic only for words spoken to the resident.
 - **Scenario Studio** — A side drawer holding the simulator: story cards (each previewing its day as a 24-hour strip), seed, playback speed (fast / narrate / slow), manual sliders for time of day, mobility, restlessness, speech drift, social isolation, staff load and optional wearable vitals, the charts and the LLM settings.
-- **Baseline Deviation Model** — Computes normalized z-score deltas from a resident's learned baseline to detect anomalies.
+- **Baseline Deviation Model** — Computes normalized z-score deltas from each resident's baseline (fixed per resident in this prototype; a real system would learn it over weeks).
 - **Risk Scoring** — Deterministic weighted scoring for fall risk, cognitive concern, and loneliness (0–100 each). Fall risk counts time out of bed: awake hours count in full; at night it follows restlessness, so a resident asleep keeps about a third of her vulnerability, and being *up at night* adds its own risk. Overall urgency follows the worst domain (plus 0.2 × the second-worst), so one severe concern is never averaged away; wearable red/amber vitals put a floor under it. Bands: Low / Medium / High.
 - **4-Level Intervention Ladder**
   1. Ambient Cue (lighting, music) — overall Low
@@ -68,6 +70,8 @@ src/
 ├── main.ts                 # Entry point, DOM setup, state management, render loop
 ├── types.ts                # All TypeScript type definitions
 ├── baseline.ts             # Default baseline, deviation computation
+├── residents.ts            # The four residents: usual levels, baselines, care-plan flags
+├── assessment.ts           # Change-from-normal alert scores, red flags, explanation
 ├── risk.ts                 # Risk scoring, urgency bands, explanation builder
 ├── intervention.ts         # Intervention level selection and template messages
 ├── simulation.ts           # Seeded 24-hour simulation: random-walk day or keyframed scenario

@@ -150,3 +150,41 @@ describe('day log', () => {
     expect(el('logDetail').textContent).toContain('Fall risk elevated');
   });
 });
+
+describe('residents', () => {
+  function pickResident(id: string) {
+    el('btnResident').click();
+    document.querySelector<HTMLButtonElement>(`#residentMenu [data-id="${id}"]`)!.click();
+  }
+
+  it('switches resident: name and usual levels load', async () => {
+    await loadApp();
+    expect(el('residentName').textContent).toBe('Eleanor, 82');
+    pickResident('walter');
+    expect(el('residentName').textContent).toBe('Walter, 88');
+    expect(el<HTMLInputElement>('mobilitySlider').value).toBe('42');
+    expect(el('btnResident').getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('ends a run when the resident changes', async () => {
+    await loadApp();
+    playStory('uti');
+    await vi.advanceTimersByTimeAsync(120 * 4 + 10);
+    pickResident('joseph');
+    expect(el('playbackBar').hidden).toBe(true);
+    expect(el('storyChip').hidden).toBe(true);
+    expect(el('residentName').textContent).toBe('Joseph, 85');
+  });
+
+  it("selects a story's resident when the story is chosen", async () => {
+    await loadApp();
+    el('btnStudio').click();
+    document.querySelector<HTMLButtonElement>('.story-card[data-id="sundowning"]')!.click();
+    expect(el('residentName').textContent).toBe('Margaret, 79');
+  });
+
+  it("shows each area's usual level on the status card", async () => {
+    await loadApp();
+    expect(el('fallUsual').textContent).toMatch(/usual \d+/);
+  });
+});
