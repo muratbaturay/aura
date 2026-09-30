@@ -405,13 +405,19 @@ function renderExplanation(
   intervention: EnrichedInterventionOutput,
 ) {
   const expEl = document.getElementById('explanationContent')!;
+  // Bar length = points on the 0–100 score scale
   const factorsHTML = explanation.topFactors.map(f =>
     `<div class="factor-row">
-      <span class="factor-name">${f.factor}</span>
-      <div class="factor-bar-bg"><div class="factor-bar" style="width:${Math.min(100, f.weight * 100)}%"></div></div>
-      <span class="factor-val">${(f.weight * 100).toFixed(0)}%</span>
+      <span class="factor-name">${escapeHtml(f.factor)}</span>
+      <div class="factor-bar-bg"><div class="factor-bar" style="width:${Math.min(100, f.points)}%"></div></div>
+      <span class="factor-val">+${Math.round(f.points)}</span>
     </div>`
   ).join('');
+  const shownPoints = explanation.topFactors.reduce((sum, f) => sum + f.points, 0);
+  const totalPoints = explanation.factors.reduce((sum, f) => sum + f.points, 0);
+  const summaryHTML = explanation.factors.length > 0
+    ? `<p class="factors-summary">Top ${explanation.topFactors.length} of ${explanation.factors.length} factors · ${Math.round(shownPoints)} of ${Math.round(totalPoints)} points</p>`
+    : '';
 
   const narrativeText = intervention.llmExplanation ?? explanation.narrative;
   const narrativeSource = intervention.llmExplanation
@@ -419,7 +425,9 @@ function renderExplanation(
     : '';
 
   expEl.innerHTML = `
+    <p class="decision-trigger">${escapeHtml(intervention.trigger)}</p>
     <div class="factors">${factorsHTML}</div>
+    ${summaryHTML}
     <div class="narrative-wrapper">
       ${narrativeSource}
       <p class="narrative">${escapeHtml(narrativeText)}</p>

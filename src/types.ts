@@ -48,13 +48,32 @@ export type InterventionLevel = 1 | 2 | 3 | 4;
 export interface InterventionOutput {
   level: InterventionLevel;
   levelLabel: string;
+  trigger: string;          // the ladder rule that set the level
   residentMessage: string | null;
   staffMessage: string | null;
   environmentalCue: string;
 }
 
+export type RiskDomain = 'fall' | 'cognitive' | 'loneliness';
+
+export type RiskSignal =
+  | 'mobility' | 'restlessness' | 'speech' | 'social'
+  | 'night' | 'activity' | 'heartRate' | 'spO2';
+
+/** One additive part of a domain score, before clamping. */
+export interface RiskTerm {
+  signal: RiskSignal;
+  points: number;
+}
+
+export interface ExplanationFactor {
+  factor: string;
+  points: number;           // points contributed to the Overall score
+}
+
 export interface ExplanationOutput {
-  topFactors: { factor: string; weight: number }[];
+  factors: ExplanationFactor[];     // every non-zero contributor; points sum to overall
+  topFactors: ExplanationFactor[];  // the first three of factors
   narrative: string;
 }
 

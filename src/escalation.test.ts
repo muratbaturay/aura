@@ -167,7 +167,76 @@ describe('intervention messages', () => {
   });
 });
 
+describe('intervention trigger', () => {
+  it.each([
+    [{}, 0, /Level 1: overall urgency is Low/],
+    [{ socialIsolation: 70 }, 0, /Level 2: overall urgency is Medium/],
+    [{ speechDrift: 100 }, 0, /Level 3: overall urgency is High/],
+    [wear(91, 72), 0, /Level 3: vitals are borderline/],
+    [wear(85, 72), 0, /Level 4: vitals red flag/],
+    [{ mobility: 10, restlessness: 60, speechDrift: 100 }, 0, /Level 4: two or more areas are High/],
+    [{ speechDrift: 100, ...wear(91, 72) }, 0, /Level 4: .*High and vitals are borderline/],
+    [{}, 3, /Level 4: overall urgency was High in 3\+ recent hours/],
+  ] as [Partial<CurrentState>, number, RegExp][])('names the rule that set the level (%o, recent High %s)', (patch, recent, pattern) => {
+    expect(evaluate(patch, recent).intervention.trigger).toMatch(pattern);
+  });
+});
+
 describe('explanation', () => {
+  it('attributes exactly the Overall score across the factors', () => {
+    const cases: Partial<CurrentState>[] = [
+      {},
+      { timeOfDay: 3 },
+      { speechDrift: 100 },
+      { speechDrift: 65 },
+      { mobility: 5, restlessness: 90 },               // fall capped at 100, overall capped at 100
+      { mobility: 5, restlessness: 90, timeOfDay: 2 },
+      { mobility: 10, restlessness: 60, speechDrift: 100 },
+      { mobility: 50, speechDrift: 70, socialIsolation: 70 },
+      { socialIsolation: 70 },
+      { socialIsolation: 100, mobility: 0, restlessness: 0 },
+      { mobility: 100, restlessness: 0, speechDrift: 0, socialIsolation: 0 },
+      { timeOfDay: 23, restlessness: 100, speechDrift: 80 },
+      wear(91, 72),
+      wear(85, 135),
+      wear(97, 115),
+      { ...wear(88, 125), mobility: 20, timeOfDay: 4 },
+      { ...wear(99, 60), speechDrift: 90, socialIsolation: 90 },
+      { staffLoad: 100 },
+    ];
+    for (const c of cases) {
+      const { risks, explanation } = evaluate(c);
+      const total = explanation.factors.reduce((sum, f) => sum + f.points, 0);
+      expect(total).toBeCloseTo(risks.overall, 6);
+      for (const f of explanation.factors) expect(f.points).toBeGreaterThan(0);
+    }
+  });
+
+  it('ranks the factor that drives the worst area first, with its real points', () => {
+    // Speech drift 100 → cognitive = 100 × 0.45 + (80 / √50) × 4 ≈ 90.25, all from speech
+    const top = evaluate({ speechDrift: 100 }).explanation.topFactors[0];
+    expect(top.factor).toMatch(/speech/i);
+    expect(top.points).toBeCloseTo(90.25, 1);
+  });
+
+  it('shows the vitals floor as its own factor, naming the vital', () => {
+    // SpO2 91: loneliness 19.2 + 0.2 × fall 18.5 = 22.9 → floored to 40, so the floor adds 17.1
+    const floor = evaluate(wear(91, 72)).explanation.factors.find(f => /flag/i.test(f.factor));
+    expect(floor?.factor).toMatch(/blood oxygen/i);
+    expect(floor?.points).toBeCloseTo(17.1, 1);
+  });
+
+  it('keeps factor names stable as a flagged vital moves (they gate LLM calls)', () => {
+    const names = (spO2: number, hr: number) => evaluate(wear(spO2, hr)).explanation.factors.map(f => f.factor).sort();
+    expect(names(90.5, 72)).toEqual(names(91, 72));
+    expect(names(97, 118)).toEqual(names(97, 112));
+  });
+
+  it('builds the narrative from the real top contributors', () => {
+    const narrative = evaluate({ speechDrift: 100 }).explanation.narrative;
+    expect(narrative).toMatch(/speech clarity drift \(\+90\)/i);
+  });
+
   it.each([
     [97, 105],
     [92.5, 72],

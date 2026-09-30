@@ -14,7 +14,7 @@ A browser-based simulator that models an ambient AI system for assisted-living e
   4. Escalate (urgent staff notification) — red vitals (SpO2 < 90%, HR > 120), two High domains, a High domain with amber vitals, or 3+ High hours during a simulation
 
   Staff load never changes the level; when it is high it adds a prioritization note to the staff message.
-- **Explainability Panel** — Shows top contributing factors with weight bars and a natural-language summary.
+- **Explainability Panel** — States the ladder rule that set the level, then attributes the Overall score to the signals behind it (exact additive contributions from the scoring model, in points that sum to the score), with a natural-language summary built from the same numbers.
 - **24-Hour Simulation** — Animated walk-through of a full day with random drift, night patterns, and event generation.
 - **Optional LLM Messaging** — Toggle on adaptive, AI-generated resident and staff messages via any OpenAI-compatible API (OpenAI, Ollama, LM Studio). Falls back to deterministic templates when disabled.
 - **SVG Charts** — Baseline vs Current bar chart and 24h risk trend lines with night-band shading.

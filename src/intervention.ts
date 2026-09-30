@@ -1,16 +1,16 @@
-import type { CurrentState, RiskScores, InterventionOutput, InterventionLevel, VitalsFlag } from './types';
-import { urgencyBand, vitalsFlag } from './risk';
+import type { CurrentState, RiskScores, InterventionOutput, InterventionLevel, VitalsFlag, RiskDomain } from './types';
+import { urgencyBand, vitalsFlag, RISK_DOMAINS } from './risk';
 import { isNightHour, DEFAULT_BASELINE } from './baseline';
 
-type Domain = 'fall' | 'cognitive' | 'loneliness';
-
-const DOMAIN_LABELS: Record<Domain, string> = {
+const DOMAIN_LABELS: Record<RiskDomain, string> = {
   fall: 'Fall risk',
   cognitive: 'Cognitive concern',
   loneliness: 'Loneliness risk',
 };
 
-const DOMAINS: Domain[] = ['fall', 'cognitive', 'loneliness'];
+function vitalsText(state: CurrentState): string {
+  return `SpO2 ${+state.spO2.toFixed(1)}%, HR ${Math.round(state.heartRate)} bpm`;
+}
 
 export function selectIntervention(
   state: CurrentState,
@@ -19,25 +19,40 @@ export function selectIntervention(
 ): InterventionOutput {
   const night = isNightHour(state.timeOfDay, DEFAULT_BASELINE);
   const vitals = vitalsFlag(state);
-  const highDomains = DOMAINS.filter(d => urgencyBand(risks[d]) === 'High');
+  const highDomains = RISK_DOMAINS.filter(d => urgencyBand(risks[d]) === 'High');
   const overallBand = urgencyBand(risks.overall);
+  const lower = (d: RiskDomain) => DOMAIN_LABELS[d].toLowerCase();
 
   // Staff load deliberately plays no part here: the resident's risk alone sets the level.
-  let level: InterventionLevel = 1;
-  if (
-    vitals === 'red' ||
-    highDomains.length >= 2 ||
-    (highDomains.length >= 1 && vitals === 'amber') ||
-    recentHighCount >= 3
-  ) {
+  let level: InterventionLevel;
+  let trigger: string;
+  if (vitals === 'red') {
     level = 4;
-  } else if (overallBand === 'High' || vitals === 'amber') {
+    trigger = `Level 4: vitals red flag (${vitalsText(state)}).`;
+  } else if (highDomains.length >= 2) {
+    level = 4;
+    trigger = `Level 4: two or more areas are High (${highDomains.map(lower).join(', ')}).`;
+  } else if (highDomains.length >= 1 && vitals === 'amber') {
+    level = 4;
+    trigger = `Level 4: ${lower(highDomains[0])} is High and vitals are borderline (${vitalsText(state)}).`;
+  } else if (recentHighCount >= 3) {
+    level = 4;
+    trigger = 'Level 4: overall urgency was High in 3+ recent hours.';
+  } else if (overallBand === 'High') {
     level = 3;
+    trigger = 'Level 3: overall urgency is High (70+).';
+  } else if (vitals === 'amber') {
+    level = 3;
+    trigger = `Level 3: vitals are borderline (${vitalsText(state)}).`;
   } else if (overallBand === 'Medium') {
     level = 2;
+    trigger = 'Level 2: overall urgency is Medium (40–69).';
+  } else {
+    level = 1;
+    trigger = 'Level 1: overall urgency is Low (under 40).';
   }
 
-  return buildIntervention(level, state, risks, night, vitals, highDomains);
+  return { ...buildIntervention(level, state, risks, night, vitals, highDomains), trigger };
 }
 
 function buildIntervention(
@@ -46,12 +61,11 @@ function buildIntervention(
   risks: RiskScores,
   night: boolean,
   vitals: VitalsFlag,
-  highDomains: Domain[]
-): InterventionOutput {
+  highDomains: RiskDomain[]
+): Omit<InterventionOutput, 'trigger'> {
   const hour = Math.floor(state.timeOfDay);
   const timeLabel = `${hour.toString().padStart(2, '0')}:${Math.floor((state.timeOfDay % 1) * 60).toString().padStart(2, '0')}`;
-  const vitalsText = `SpO2 ${+state.spO2.toFixed(1)}%, HR ${Math.round(state.heartRate)} bpm`;
-  const domainText = (ds: Domain[]) => ds.map(d => `${DOMAIN_LABELS[d]} High (${Math.round(risks[d])}%)`).join(', ');
+  const domainText = (ds: RiskDomain[]) => ds.map(d => `${DOMAIN_LABELS[d]} High (${Math.round(risks[d])}%)`).join(', ');
   const staffNote = state.staffLoad > 65
     ? ` Staff load high (${Math.round(state.staffLoad)}%): prioritize accordingly.`
     : '';
@@ -69,7 +83,7 @@ function buildIntervention(
       };
 
     case 2: {
-      const driver = DOMAINS.reduce((a, b) => (risks[b] > risks[a] ? b : a));
+      const driver = RISK_DOMAINS.reduce((a, b) => (risks[b] > risks[a] ? b : a));
       const resMsg = {
         loneliness: `Good ${night ? 'evening' : 'afternoon'}! Your friend Martha mentioned she'd love to chat — would you like to give her a call?`,
         fall: `Just a gentle reminder: take your time if you're getting up. The path light is on for you.`,
@@ -89,11 +103,11 @@ function buildIntervention(
     case 3: {
       let whyStaff: string;
       if (vitals === 'amber') {
-        whyStaff = `Vitals borderline (${vitalsText}).`;
+        whyStaff = `Vitals borderline (${vitalsText(state)}).`;
       } else if (highDomains.length > 0) {
         whyStaff = `${domainText(highDomains)} — ${night ? 'nighttime' : 'daytime'}.`;
       } else {
-        const elevated = DOMAINS.filter(d => urgencyBand(risks[d]) !== 'Low')
+        const elevated = RISK_DOMAINS.filter(d => urgencyBand(risks[d]) !== 'Low')
           .map(d => `${DOMAIN_LABELS[d].toLowerCase()} ${Math.round(risks[d])}%`).join(', ');
         whyStaff = `Several concerns elevated together (${elevated}; overall ${Math.round(risks.overall)}%).`;
       }
@@ -109,11 +123,11 @@ function buildIntervention(
     case 4: {
       let whyEscalate: string;
       if (vitals === 'red') {
-        whyEscalate = `Vitals red flag (${vitalsText}). Immediate check recommended.`;
+        whyEscalate = `Vitals red flag (${vitalsText(state)}). Immediate check recommended.`;
       } else if (highDomains.length >= 2) {
         whyEscalate = `Multiple high concerns: ${domainText(highDomains)}. Prompt attention needed.`;
       } else if (highDomains.length >= 1 && vitals === 'amber') {
-        whyEscalate = `${domainText(highDomains)} with borderline vitals (${vitalsText}). Prompt attention needed.`;
+        whyEscalate = `${domainText(highDomains)} with borderline vitals (${vitalsText(state)}). Prompt attention needed.`;
       } else {
         whyEscalate = `Repeated high-risk pattern (overall urgency High in 3+ recent hours). Prompt attention needed.`;
       }

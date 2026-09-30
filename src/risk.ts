@@ -1,8 +1,73 @@
-import type { ResidentBaseline, CurrentState, Deviations, RiskScores, UrgencyBand, VitalsFlag, ExplanationOutput } from './types';
+import type {
+  ResidentBaseline, CurrentState, Deviations, RiskScores, UrgencyBand, VitalsFlag,
+  RiskDomain, RiskSignal, RiskTerm, ExplanationFactor, ExplanationOutput,
+} from './types';
 import { isNightHour } from './baseline';
 
 function clamp(v: number, lo = 0, hi = 100): number {
   return Math.max(lo, Math.min(hi, v));
+}
+
+export const RISK_DOMAINS: RiskDomain[] = ['fall', 'cognitive', 'loneliness'];
+
+/** Weight of the second-worst domain in the overall score. */
+const SECOND_DOMAIN_WEIGHT = 0.2;
+
+/** Minimum overall score while a vitals flag is raised. */
+const VITALS_FLOOR: Record<VitalsFlag, number> = { none: 0, amber: 40, red: 70 };
+
+/**
+ * Additive parts of each domain score (before clamping), tagged with the
+ * signal they come from. computeRisks sums these and buildExplanation
+ * attributes them, so the explanation cannot drift from the score.
+ */
+export function riskTerms(
+  state: CurrentState,
+  deviations: Deviations,
+  baseline: ResidentBaseline
+): Record<RiskDomain, RiskTerm[]> {
+  const night = isNightHour(state.timeOfDay, baseline);
+
+  // ── Fall Risk ──
+  const fall: RiskTerm[] = [
+    // Lower mobility stability → higher risk, amplified below personal baseline
+    { signal: 'mobility', points: (100 - state.mobility) * 0.35 + Math.max(0, deviations.mobility) * 5 },
+    // Higher restlessness → higher risk, amplified above personal baseline
+    { signal: 'restlessness', points: state.restlessness * 0.20 + Math.max(0, deviations.restlessness) * 3 },
+    // Night amplifier
+    { signal: 'night', points: night ? 18 : 0 },
+  ];
+  // Vitals influence
+  if (state.useWearables) {
+    fall.push({ signal: 'heartRate', points: Math.max(0, state.heartRate - 110) * 0.5 });
+    fall.push({ signal: 'spO2', points: Math.max(0, 92 - state.spO2) * 3 });
+  }
+
+  // ── Cognitive Concern Signal ──
+  const cognitive: RiskTerm[] = [
+    { signal: 'speech', points: state.speechDrift * 0.45 + Math.max(0, deviations.speech) * 4 },
+    // Night wandering proxy
+    { signal: 'restlessness', points: night ? state.restlessness * 0.25 : 0 },
+  ];
+
+  // ── Loneliness Risk ──
+  // Low movement + high isolation
+  const activityProxy = state.mobility * 0.3 + (100 - state.restlessness) * 0.2;
+  const loneliness: RiskTerm[] = [
+    { signal: 'social', points: state.socialIsolation * 0.50 + Math.max(0, deviations.social) * 4 },
+    { signal: 'activity', points: Math.max(0, 50 - activityProxy) * 0.3 },
+  ];
+
+  return { fall, cognitive, loneliness };
+}
+
+function sumTerms(terms: RiskTerm[]): number {
+  return terms.reduce((sum, t) => sum + t.points, 0);
+}
+
+/** Domains ordered worst first (ties keep RISK_DOMAINS order). */
+function rankDomains(scores: Record<RiskDomain, number>): RiskDomain[] {
+  return [...RISK_DOMAINS].sort((a, b) => scores[b] - scores[a]);
 }
 
 export function computeRisks(
@@ -10,53 +75,21 @@ export function computeRisks(
   deviations: Deviations,
   baseline: ResidentBaseline
 ): RiskScores {
-  const night = isNightHour(state.timeOfDay, baseline);
-
-  // ── Fall Risk ──
-  let fall = 0;
-  // Lower mobility stability → higher risk
-  fall += (100 - state.mobility) * 0.35;
-  // Higher restlessness → higher risk
-  fall += state.restlessness * 0.20;
-  // Night amplifier
-  if (night) fall += 18;
-  // Deviation amplifiers
-  fall += Math.max(0, deviations.mobility) * 5;
-  fall += Math.max(0, deviations.restlessness) * 3;
-  // Vitals influence
-  if (state.useWearables) {
-    if (state.heartRate > 110) fall += (state.heartRate - 110) * 0.5;
-    if (state.spO2 < 92) fall += (92 - state.spO2) * 3;
-  }
-  fall = clamp(fall);
-
-  // ── Cognitive Concern Signal ──
-  let cognitive = 0;
-  cognitive += state.speechDrift * 0.45;
-  // Night wandering proxy
-  if (night) cognitive += state.restlessness * 0.25;
-  cognitive += Math.max(0, deviations.speech) * 4;
-  cognitive = clamp(cognitive);
-
-  // ── Loneliness Risk ──
-  let loneliness = 0;
-  loneliness += state.socialIsolation * 0.50;
-  // Low movement + high isolation
-  const activityProxy = state.mobility * 0.3 + (100 - state.restlessness) * 0.2;
-  loneliness += Math.max(0, 50 - activityProxy) * 0.3;
-  loneliness += Math.max(0, deviations.social) * 4;
-  loneliness = clamp(loneliness);
+  const terms = riskTerms(state, deviations, baseline);
+  const fall = clamp(sumTerms(terms.fall));
+  const cognitive = clamp(sumTerms(terms.cognitive));
+  const loneliness = clamp(sumTerms(terms.loneliness));
 
   // ── Overall Urgency ──
   // Worst domain, nudged up when a second domain is also elevated — a single
   // severe concern is never diluted by calm signals elsewhere.
-  const [worst, second] = [fall, cognitive, loneliness].sort((a, b) => b - a);
-  let overall = worst + second * 0.2;
+  const scores = { fall, cognitive, loneliness };
+  const [worst, second] = rankDomains(scores);
   // Vitals floor keeps the overall card consistent with vitals-driven escalation
-  const vitals = vitalsFlag(state);
-  if (vitals === 'red') overall = Math.max(overall, 70);
-  else if (vitals === 'amber') overall = Math.max(overall, 40);
-  overall = clamp(overall);
+  const overall = clamp(Math.max(
+    scores[worst] + scores[second] * SECOND_DOMAIN_WEIGHT,
+    VITALS_FLOOR[vitalsFlag(state)],
+  ));
 
   return { fall, cognitive, loneliness, overall };
 }
@@ -75,64 +108,87 @@ export function urgencyBand(score: number): UrgencyBand {
   return 'High';
 }
 
+const SIGNAL_LABELS: Record<RiskSignal, string> = {
+  mobility: 'Mobility stability',
+  restlessness: 'Restlessness',
+  speech: 'Speech clarity drift',
+  social: 'Social isolation',
+  night: 'Nighttime hours',
+  activity: 'Low overall activity',
+  heartRate: 'Heart rate',
+  spO2: 'Blood oxygen (SpO2)',
+};
+
+// No live readings in the label: factor names feed the LLM change-detection
+// signature, and the trigger line already shows the values.
+function vitalsFlagLabel(state: CurrentState, flag: VitalsFlag): string {
+  const parts: string[] = [];
+  if (state.spO2 < 92) parts.push('blood oxygen');
+  if (state.heartRate > 110) parts.push('heart rate');
+  return `Vitals ${flag} flag: ${parts.join(' and ')}`;
+}
+
+/**
+ * Attributes the Overall score to the signals behind it, following
+ * computeRisks exactly: the worst domain's parts count in full, the
+ * second-worst's at SECOND_DOMAIN_WEIGHT, a capped domain's parts are scaled
+ * to its capped score, and a vitals floor appears as its own factor.
+ * Factor points always sum to risks.overall.
+ */
 export function buildExplanation(
   state: CurrentState,
   deviations: Deviations,
   risks: RiskScores,
   baseline: ResidentBaseline
 ): ExplanationOutput {
-  const night = isNightHour(state.timeOfDay, baseline);
+  const terms = riskTerms(state, deviations, baseline);
+  const [worst, second] = rankDomains(risks);
 
-  const factors: { factor: string; weight: number }[] = [];
+  const points = new Map<string, number>();
+  const add = (label: string, p: number) => {
+    if (p > 0) points.set(label, (points.get(label) ?? 0) + p);
+  };
 
-  // Mobility
-  if (state.mobility < 50)
-    factors.push({ factor: 'Reduced mobility stability', weight: +(100 - state.mobility) / 100 });
-  // Restlessness
-  if (state.restlessness > 40)
-    factors.push({ factor: 'Elevated restlessness', weight: +state.restlessness / 100 });
-  // Night
-  if (night)
-    factors.push({ factor: 'Nighttime hours', weight: 0.6 });
-  // Speech drift
-  if (state.speechDrift > 35)
-    factors.push({ factor: 'Speech clarity change', weight: +state.speechDrift / 100 });
-  // Social isolation
-  if (state.socialIsolation > 45)
-    factors.push({ factor: 'Social isolation trend', weight: +state.socialIsolation / 100 });
-  // Vitals (same thresholds as the amber flag in vitalsFlag)
-  if (state.useWearables && state.heartRate > 110)
-    factors.push({ factor: 'Elevated heart rate', weight: 0.5 });
-  if (state.useWearables && state.spO2 < 92)
-    factors.push({ factor: 'Low blood oxygen', weight: 0.7 });
-  // Deviations
-  if (deviations.mobility > 1.5)
-    factors.push({ factor: 'Mobility below personal baseline', weight: 0.55 });
-  if (deviations.restlessness > 1.5)
-    factors.push({ factor: 'Restlessness above personal baseline', weight: 0.45 });
-
-  // If no factors, add a default
-  if (factors.length === 0)
-    factors.push({ factor: 'All signals within comfortable range', weight: 0.1 });
-
-  factors.sort((a, b) => b.weight - a.weight);
-  const top3 = factors.slice(0, 3);
-
-  // Build narrative
-  const band = urgencyBand(risks.overall);
-  let narrative: string;
-  if (band === 'Low') {
-    narrative = `The resident's current state is within a comfortable range. ` +
-      `No significant deviations from their personal baseline have been detected.`;
-  } else if (band === 'Medium') {
-    const topNames = top3.map(f => f.factor.toLowerCase()).join(' and ');
-    narrative = `Moderate attention suggested. The system has noticed ${topNames}. ` +
-      `These patterns are being monitored to ensure the resident's comfort and safety.`;
-  } else {
-    const topNames = top3.map(f => f.factor.toLowerCase()).join(', ');
-    narrative = `Elevated concern detected due to ${topNames}. ` +
-      `The system recommends timely support to ensure the resident's wellbeing.`;
+  for (const [domain, weight] of [[worst, 1], [second, SECOND_DOMAIN_WEIGHT]] as const) {
+    const raw = sumTerms(terms[domain]);
+    const capScale = raw > 0 ? risks[domain] / raw : 0;
+    for (const t of terms[domain]) add(SIGNAL_LABELS[t.signal], t.points * capScale * weight);
   }
 
-  return { topFactors: top3, narrative };
+  const combined = risks[worst] + risks[second] * SECOND_DOMAIN_WEIGHT;
+  const flag = vitalsFlag(state);
+  const floor = VITALS_FLOOR[flag];
+  if (floor > combined) add(vitalsFlagLabel(state, flag), floor - combined);
+
+  // Overall is capped at 100; scale so the factors still sum to it
+  const total = Math.max(combined, floor);
+  const overallScale = total > 0 ? risks.overall / total : 0;
+
+  const factors: ExplanationFactor[] = [...points]
+    .map(([factor, p]) => ({ factor, points: p * overallScale }))
+    .sort((a, b) => b.points - a.points);
+  const topFactors = factors.slice(0, 3);
+
+  // Build narrative
+  const score = Math.round(risks.overall);
+  const lead = topFactors.slice(0, 2)
+    .map(f => `${f.factor[0].toLowerCase()}${f.factor.slice(1)} (+${Math.round(f.points)})`)
+    .join(' and ');
+  let narrative: string;
+  switch (urgencyBand(risks.overall)) {
+    case 'Low':
+      narrative = `Overall urgency is low (${score}/100).` +
+        (lead ? ` The largest contributors are ${lead}.` : '');
+      break;
+    case 'Medium':
+      narrative = `Overall urgency is moderate (${score}/100), driven mainly by ${lead}. ` +
+        `These patterns are being monitored to ensure the resident's comfort and safety.`;
+      break;
+    case 'High':
+      narrative = `Overall urgency is high (${score}/100), driven mainly by ${lead}. ` +
+        `Timely support is recommended to ensure the resident's wellbeing.`;
+      break;
+  }
+
+  return { factors, topFactors, narrative };
 }

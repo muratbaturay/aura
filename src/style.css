@@ -332,6 +332,20 @@ body {
   margin-bottom: var(--sp-4);
 }
 
+.decision-trigger {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--c-text);
+  margin: 0 0 var(--sp-3);
+}
+
+.factors-summary {
+  font-size: var(--fs-xs);
+  color: var(--c-text-dim);
+  margin: calc(-1 * var(--sp-2)) 0 var(--sp-4);
+  font-variant-numeric: tabular-nums;
+}
+
 .factor-row {
   display: grid;
   grid-template-columns: 180px 1fr 42px;
