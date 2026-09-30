@@ -4,7 +4,7 @@ import { computeRisks } from './risk';
 import { selectIntervention } from './intervention';
 import { createRng } from './rng';
 import { simulate24h, startStateFor } from './simulation';
-import { valueAt, type Scenario } from './scenarios';
+import { valueAt, SCENARIOS, type Scenario } from './scenarios';
 
 const TEST_SCENARIO: Scenario = {
   id: 'test', name: 'Test', description: '', seed: 1, useWearables: true, chapters: [],
@@ -78,5 +78,57 @@ describe('startStateFor', () => {
     const endOfDay = { ...first[23].state };             // where the page is left after the run
     const replay = run(123, undefined, startStateFor(123, endOfDay, { seed: 123, start: firstStart }));
     expect(replay).toEqual(first);
+  });
+});
+
+describe('events', () => {
+  const story = (id: string) => {
+    const sc = SCENARIOS.find(s => s.id === id)!;
+    return simulate24h(DEFAULT_BASELINE, defaultState(), { rng: createRng(sc.seed), scenario: sc });
+  };
+  const labelsAt = (snaps: ReturnType<typeof story>, hour: number) => snaps[hour].events.map(e => e.label);
+
+  it('logs AURA acting at each change to Level 2 or above', () => {
+    // Sundowning at its default seed: Level 2 from 17:00, 3 from 19:00, 4 from 21:00
+    const snaps = story('sundowning');
+    const acted = snaps.filter(s => s.events.some(e => e.label === 'AURA acted')).map(s => s.hour);
+    expect(acted).toEqual([17, 19, 21]);
+  });
+
+  it('logs confusion while cognitive concern is Medium or High', () => {
+    const snaps = story('sundowning');
+    for (const h of [17, 18, 20]) expect(labelsAt(snaps, h), `hour ${h}`).toContain('Confusion signs');
+    expect(labelsAt(snaps, 10)).not.toContain('Confusion signs');
+  });
+
+  it('logs moderate fall risk too, with its band as the severity', () => {
+    const snaps = run(3, { ...TEST_SCENARIO, useWearables: false, keyframes: { mobility: [[0, 45], [23, 45]] } });
+    const fall = snaps.flatMap(s => s.events).filter(e => e.label === 'Fall risk elevated');
+    expect(fall.length).toBeGreaterThan(0);
+    expect(fall.some(e => e.urgency === 'Medium')).toBe(true);
+  });
+
+  it('logs amber or red vitals', () => {
+    const snaps = run(3, { ...TEST_SCENARIO, keyframes: { heartRate: [[0, 125], [23, 125]] } });
+    expect(snaps.every(s => s.events.some(e => e.label === 'Vitals flag' && e.urgency === 'High'))).toBe(true);
+  });
+
+  it('explains every Level 2+ hour of every story and random day with at least one event', () => {
+    const days = [
+      ...SCENARIOS.map(sc => ({ name: sc.id, snaps: story(sc.id) })),
+      ...Array.from({ length: 150 }, (_, i) => ({ name: `random ${i + 1}`, snaps: run(i + 1) })),
+    ];
+    for (const { name, snaps } of days) {
+      for (const s of snaps.filter(sn => sn.intervention.level >= 2)) {
+        expect(s.events.length, `${name} ${s.hour}:00`).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('names the driving concern when only the combined score is Medium', () => {
+    // UTI 16:00 at its default seed: cognitive 39 (Low), overall 44 (Medium)
+    const e = story('uti')[16].events.find(ev => ev.label === 'Confusion signs');
+    expect(e?.urgency).toBe('Low');
+    expect(e?.detail).toMatch(/main driver/i);
   });
 });

@@ -1,6 +1,6 @@
-import type { ResidentBaseline, CurrentState, RiskScores, TimelineEvent, SimulationSnapshot } from './types';
+import type { ResidentBaseline, CurrentState, RiskScores, TimelineEvent, SimulationSnapshot, InterventionOutput, InterventionLevel } from './types';
 import { computeDeviations, defaultState, isNightHour } from './baseline';
-import { computeRisks, urgencyBand } from './risk';
+import { computeRisks, urgencyBand, vitalsFlag } from './risk';
 import { selectIntervention } from './intervention';
 import { valueAt } from './scenarios';
 import type { Scenario, ScenarioSignal, Keyframes } from './scenarios';
@@ -49,6 +49,7 @@ export function simulate24h(
     ? { ...defaultState(), useWearables: scenario.useWearables }
     : { ...initialState };
   let highStreak = 0;
+  let prevLevel: InterventionLevel = 1;
 
   for (let h = 0; h < 24; h++) {
     state.timeOfDay = h;
@@ -60,7 +61,8 @@ export function simulate24h(
     const devs = computeDeviations(baseline, state);
     const risks = computeRisks(state, devs, baseline);
     const intervention = selectIntervention(state, risks, highStreak);
-    const events = generateEvents(h, state, risks, night, baseline);
+    const events = generateEvents(h, state, risks, night, intervention, prevLevel);
+    prevLevel = intervention.level;
 
     snapshots.push({
       hour: h,
@@ -116,68 +118,75 @@ function randomDrift(state: CurrentState, night: boolean, rng: () => number): vo
   }
 }
 
+const ACTION_LABELS: Record<InterventionLevel, string> = {
+  1: 'Ambient cue',
+  2: 'Gentle prompt to Eleanor',
+  3: 'Staff soft alert sent',
+  4: 'Escalated: priority to staff',
+};
+
+/**
+ * What the day log records for one hour. Signal events follow the same bands as
+ * the scores (Medium and High only), so every hour that climbs the ladder shows
+ * why; sensor events (bed exit, wandering, vitals) keep their own triggers; and
+ * AURA's own actions are logged whenever the ladder moves to Level 2 or above.
+ */
 function generateEvents(
   hour: number,
   state: CurrentState,
   risks: RiskScores,
   night: boolean,
-  _baseline: ResidentBaseline,
+  intervention: InterventionOutput,
+  prevLevel: InterventionLevel,
 ): TimelineEvent[] {
   const events: TimelineEvent[] = [];
   const h = `${hour.toString().padStart(2, '0')}:00`;
+  const add = (label: string, urgency: TimelineEvent['urgency'], detail: string) =>
+    events.push({ time: hour, label, urgency, detail });
 
+  // ── Signals, by the model's bands ──
+  // A concern is logged when its own band is Medium or High, or when it is the
+  // main driver of a Medium/High overall score that no single concern reaches.
+  const bands = {
+    fall: urgencyBand(risks.fall),
+    cognitive: urgencyBand(risks.cognitive),
+    loneliness: urgencyBand(risks.loneliness),
+  };
+  const driver = (['fall', 'cognitive', 'loneliness'] as const)
+    .reduce((a, b) => (risks[b] > risks[a] ? b : a));
+  const combinedOnly = urgencyBand(risks.overall) !== 'Low' && Object.values(bands).every(b => b === 'Low');
+  const logged = (d: keyof typeof bands) => bands[d] !== 'Low' || (combinedOnly && d === driver);
+  const driverNote = (d: keyof typeof bands) =>
+    bands[d] === 'Low' ? ` Main driver of overall ${Math.round(risks.overall)}%.` : '';
+
+  if (logged('fall')) {
+    add('Fall risk elevated', bands.fall, `Fall risk ${Math.round(risks.fall)}% at ${h}.${driverNote('fall')}`);
+  }
+  if (logged('cognitive')) {
+    add('Confusion signs', bands.cognitive,
+      `Cognitive concern ${Math.round(risks.cognitive)}% · speech clarity drift ${Math.round(state.speechDrift)}% at ${h}.${driverNote('cognitive')}`);
+  }
+  if (logged('loneliness') && (!night || bands.loneliness === 'Low')) {
+    add('Isolation noted', bands.loneliness,
+      `Loneliness ${Math.round(risks.loneliness)}% · social isolation trend ${Math.round(state.socialIsolation)}% at ${h}.${driverNote('loneliness')}`);
+  }
+
+  // ── Sensor events ──
   if (night && state.restlessness > 55) {
-    events.push({
-      time: hour,
-      label: 'Bed exit detected',
-      urgency: urgencyBand(risks.fall),
-      detail: `Restlessness ${Math.round(state.restlessness)}% at ${h}. Path lighting activated.`,
-    });
+    add('Bed exit detected', bands.fall, `Restlessness ${Math.round(state.restlessness)}% at ${h}. Path lighting activated.`);
   }
-
   if (night && state.restlessness > 65 && state.mobility < 45) {
-    events.push({
-      time: hour,
-      label: 'Wandering pattern',
-      urgency: urgencyBand(risks.cognitive),
-      detail: `Nighttime movement with reduced stability at ${h}.`,
-    });
+    add('Wandering pattern', bands.cognitive === 'Low' ? 'Medium' : bands.cognitive, `Nighttime movement with reduced stability at ${h}.`);
+  }
+  const vitals = vitalsFlag(state);
+  if (vitals !== 'none') {
+    add('Vitals flag', vitals === 'red' ? 'High' : 'Medium',
+      `SpO2 ${+state.spO2.toFixed(1)}%, HR ${Math.round(state.heartRate)} bpm (${vitals}) at ${h}.`);
   }
 
-  if (risks.fall > 70) {
-    events.push({
-      time: hour,
-      label: 'Fall risk elevated',
-      urgency: 'High',
-      detail: `Fall risk score ${Math.round(risks.fall)}% at ${h}. Staff alerted.`,
-    });
-  }
-
-  if (risks.loneliness > 60 && !night) {
-    events.push({
-      time: hour,
-      label: 'Isolation noted',
-      urgency: urgencyBand(risks.loneliness),
-      detail: `Social isolation trend high (${Math.round(state.socialIsolation)}%) at ${h}.`,
-    });
-  }
-
-  if (risks.overall < 25) {
-    events.push({
-      time: hour,
-      label: 'Comfortable period',
-      urgency: 'Low',
-      detail: `All signals within range at ${h}.`,
-    });
-  }
-
-  if (state.useWearables && state.spO2 < 91) {
-    events.push({
-      time: hour,
-      label: 'SpO2 low',
-      urgency: 'High',
-      detail: `Blood oxygen ${Math.round(state.spO2)}% at ${h}.`,
-    });
+  // ── What AURA did ──
+  if (intervention.level >= 2 && intervention.level !== prevLevel) {
+    add('AURA acted', intervention.level === 2 ? 'Medium' : 'High', `${ACTION_LABELS[intervention.level]} at ${h}.`);
   }
 
   return events;

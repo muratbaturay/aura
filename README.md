@@ -24,7 +24,7 @@ A browser-based simulator that models an ambient AI system for assisted-living e
 - **Scenario Presets** — Scripted one-day stories for demos, each walking the intervention ladder along a different path: *Sundowning evening* (cognitive → Level 4 at night), *UTI onset* (confusion + rising heart rate → Level 4, then recovery), *Withdrawn day* (loneliness, gentle prompts only) and *Restless night* (fall risk → Level 4 in the small hours). Each has a fixed seed so the demo plays the same way every time; stories play at 0.5 s per hour.
 - **Optional LLM Messaging** — Toggle on adaptive, AI-generated resident and staff messages via any OpenAI-compatible API (OpenAI, Ollama, LM Studio). Falls back to deterministic templates when disabled.
 - **SVG Charts** — Baseline vs Current bar chart and 24h risk trend lines with night-band shading, in the Scenario Studio.
-- **Day Log** — Event lanes across the 24 hours (bed exit, fall risk, wandering, isolation, blood oxygen, calm periods): one mark per hour an event occurred, coloured by severity, night hours shaded. Click a mark to jump there; the selected hour's events are listed below in plain text.
+- **Day Log** — Event lanes across the 24 hours: fall risk, confusion and isolation (logged whenever their band is Medium or High, or when one drives a Medium/High overall on its own), bed exits, wandering, vitals flags, and *AURA acted* (each prompt, staff alert or escalation). Every Level 2+ hour has at least one mark explaining it. Marks are coloured by severity, night hours shaded; click one to jump there and read that hour's events in plain text.
 
 ## Tech Stack
 

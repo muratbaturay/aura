@@ -2,12 +2,13 @@ import type { TimelineEvent, UrgencyBand } from './types';
 
 /** One row per kind of event the simulation reports, in display order. */
 export const LANES = [
-  { id: 'bed-exit', label: 'Bed exit', match: 'Bed exit detected' },
   { id: 'fall', label: 'Fall risk', match: 'Fall risk elevated' },
-  { id: 'wandering', label: 'Wandering', match: 'Wandering pattern' },
+  { id: 'confusion', label: 'Confusion', match: 'Confusion signs' },
   { id: 'isolation', label: 'Isolation', match: 'Isolation noted' },
-  { id: 'spo2', label: 'Blood oxygen', match: 'SpO2 low' },
-  { id: 'calm', label: 'Calm period', match: 'Comfortable period' },
+  { id: 'bed-exit', label: 'Bed exit', match: 'Bed exit detected' },
+  { id: 'wandering', label: 'Wandering', match: 'Wandering pattern' },
+  { id: 'vitals', label: 'Vitals', match: 'Vitals flag' },
+  { id: 'acted', label: 'AURA acted', match: 'AURA acted' },
 ] as const;
 
 export interface LaneCell {

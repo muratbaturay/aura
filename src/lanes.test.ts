@@ -12,7 +12,7 @@ const ev = (time: number, label: string, urgency: TimelineEvent['urgency'], deta
 describe('eventLanes', () => {
   it('always has the same lanes, each with 24 hourly cells', () => {
     const lanes = eventLanes([]);
-    expect(lanes.map(l => l.label)).toEqual(['Bed exit', 'Fall risk', 'Wandering', 'Isolation', 'Blood oxygen', 'Calm period']);
+    expect(lanes.map(l => l.label)).toEqual(['Fall risk', 'Confusion', 'Isolation', 'Bed exit', 'Wandering', 'Vitals', 'AURA acted']);
     for (const lane of lanes) {
       expect(lane.cells.map(c => c.hour)).toEqual(Array.from({ length: 24 }, (_, h) => h));
       expect(lane.cells.every(c => c.severity === null)).toBe(true);
@@ -23,13 +23,13 @@ describe('eventLanes', () => {
     const lanes = eventLanes([
       ev(4, 'Bed exit detected', 'Medium'),
       ev(4, 'Bed exit detected', 'High'),
-      ev(9, 'Comfortable period', 'Low'),
+      ev(9, 'AURA acted', 'Medium'),
     ]);
     const bed = lanes.find(l => l.label === 'Bed exit')!;
     expect(bed.cells[4].severity).toBe('High');
     expect(bed.cells[4].events).toHaveLength(2);
     expect(bed.cells[5].severity).toBeNull();
-    expect(lanes.find(l => l.label === 'Calm period')!.cells[9].severity).toBe('Low');
+    expect(lanes.find(l => l.label === 'AURA acted')!.cells[9].severity).toBe('Medium');
   });
 
   it('has a lane for every event the simulation can produce', () => {
