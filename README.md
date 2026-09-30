@@ -4,7 +4,7 @@ A browser-based simulator that models an ambient AI system for assisted-living e
 
 ## Features
 
-- **Dusk & Dawn Care View** — Three columns: the resident's status, their day, and why AURA acted / what it is doing. The interface follows the simulated clock: warm paper by day, a dim, warm, night-safe theme from 22:00 to 06:00. Type: Fraunces, Instrument Sans, IBM Plex Mono.
+- **Dusk & Dawn Care View** — Three columns: the resident's status, their day, and why AURA acted / what it is doing, with the day log across the bottom. A header switch picks the theme: **Light** (default), **Dark** (a dim, warm, night-safe palette) or **Follow the clock** (dark from 22:00 to 06:00); the choice is remembered. Type: Fraunces, Instrument Sans, IBM Plex Mono.
 - **Scenario Studio** — A side drawer holding the simulator: story cards (each previewing its day as a 24-hour strip), seed, playback speed (fast / narrate / slow), manual sliders for time of day, mobility, restlessness, speech drift, social isolation, staff load and optional wearable vitals, the charts and the LLM settings.
 - **Baseline Deviation Model** — Computes normalized z-score deltas from a resident's learned baseline to detect anomalies.
 - **Risk Scoring** — Deterministic weighted scoring for fall risk, cognitive concern, and loneliness (0–100 each). Overall urgency follows the worst domain (plus 0.2 × the second-worst), so one severe concern is never averaged away; wearable red/amber vitals put a floor under it. Bands: Low / Medium / High.
@@ -24,7 +24,7 @@ A browser-based simulator that models an ambient AI system for assisted-living e
 - **Scenario Presets** — Scripted one-day stories for demos, each walking the intervention ladder along a different path: *Sundowning evening* (cognitive → Level 4 at night), *UTI onset* (confusion + rising heart rate → Level 4, then recovery), *Withdrawn day* (loneliness, gentle prompts only) and *Restless night* (fall risk → Level 4 in the small hours). Each has a fixed seed so the demo plays the same way every time; stories play at 0.5 s per hour.
 - **Optional LLM Messaging** — Toggle on adaptive, AI-generated resident and staff messages via any OpenAI-compatible API (OpenAI, Ollama, LM Studio). Falls back to deterministic templates when disabled.
 - **SVG Charts** — Baseline vs Current bar chart and 24h risk trend lines with night-band shading, in the Scenario Studio.
-- **Event Timeline** — Chronological feed of detected events with severity markers.
+- **Day Log** — Event lanes across the 24 hours (bed exit, fall risk, wandering, isolation, blood oxygen, calm periods): one mark per hour an event occurred, coloured by severity, night hours shaded. Click a mark to jump there; the selected hour's events are listed below in plain text.
 
 ## Tech Stack
 
@@ -76,11 +76,12 @@ src/
 ├── escalation.test.ts      # Vitest coverage for scoring and the intervention ladder
 ├── chart.ts                # SVG chart renderers (comparison + timeline)
 ├── view.ts                 # View models: halo per level, explanation score-bar segments
-├── theme.ts                # Day/night theme from the simulated clock; part of day
+├── theme.ts                # Theme preference (light / dark / follow the clock) and part of day
 ├── ring.ts                 # 24-hour ring segments, gradients and positions
 ├── playback.ts             # Playback controller (play, pause, seek, step, speed)
 ├── chapters.ts             # Story chapters and past/now/upcoming view
 ├── ack.ts                  # Staff acknowledgement state (reducer)
+├── lanes.ts                # Day log: events grouped into lanes by hour
 ├── ui/
 │   ├── template.ts         # Page markup
 │   ├── drawer.ts           # Scenario Studio drawer (modal side panel)

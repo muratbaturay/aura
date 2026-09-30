@@ -34,6 +34,11 @@ export function buildHTML(): string {
       <span id="storyStatus" class="story-status"></span>
     </span>
     <span id="llmActiveBadge" class="header-llm-badge hidden">LLM Active</span>
+    <div class="theme-switch" role="radiogroup" aria-label="Theme">
+      <button type="button" role="radio" id="themeLight" data-theme-pref="light" aria-checked="false" aria-label="Light" title="Light">${icons.sunSmall}</button>
+      <button type="button" role="radio" id="themeDark" data-theme-pref="dark" aria-checked="false" aria-label="Dark" title="Dark">${icons.moonSmall}</button>
+      <button type="button" role="radio" id="themeAuto" data-theme-pref="auto" aria-checked="false" aria-label="Follow the clock" title="Follow the clock">${icons.clock}</button>
+    </div>
     <div class="clock">
       <span id="clockIcon" class="clock-icon"></span>
       <span id="clockTime" class="clock-time mono"></span>
@@ -88,10 +93,6 @@ export function buildHTML(): string {
       <div id="playbackBar" class="playback-bar" hidden></div>
       <div id="chapters" class="chapters" hidden></div>
     </section>
-    <section class="card">
-      <h3 class="card-title">Event timeline</h3>
-      <div id="eventFeed" class="event-feed"></div>
-    </section>
   </div>
 
   <div class="care-col" id="colWhy">
@@ -113,6 +114,12 @@ export function buildHTML(): string {
       </div>
     </section>
   </div>
+
+  <section class="card day-log" aria-labelledby="dayLogTitle">
+    <h3 id="dayLogTitle" class="card-title">Day log</h3>
+    <div id="lanes" class="lanes"></div>
+    <div id="logDetail" class="log-detail" aria-live="polite"></div>
+  </section>
 </main>
 
 <footer class="app-footer">

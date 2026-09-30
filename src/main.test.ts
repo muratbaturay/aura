@@ -6,6 +6,7 @@ let llmCalls = 0;
 
 async function loadApp() {
   vi.resetModules();
+  document.documentElement.removeAttribute('data-theme');
   document.body.innerHTML = '<div id="app"></div>';
   localStorage.setItem('aura_llm_config', JSON.stringify({
     apiKey: 'test-key', baseUrl: 'http://llm.test/v1', model: 'test-model', enabled: true,
@@ -99,5 +100,53 @@ describe('controls during a run', () => {
     s.dispatchEvent(new Event('input'));
     expect(el('playbackBar').hidden).toBe(true);
     expect(el('storyChip').hidden).toBe(true);
+  });
+});
+
+function setTime(hour: number) {
+  const s = el<HTMLInputElement>('timeSlider');
+  s.value = String(hour);
+  s.dispatchEvent(new Event('input'));
+}
+const theme = () => document.documentElement.dataset.theme;
+
+describe('theme setting', () => {
+  it('is light by default, even at night', async () => {
+    await loadApp();
+    setTime(3);
+    expect(theme()).toBe('day');
+    expect(el('themeLight').getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('remembers dark across a reload', async () => {
+    await loadApp();
+    el('themeDark').click();
+    setTime(14);
+    expect(theme()).toBe('night');
+    await loadApp();
+    expect(theme()).toBe('night');
+    expect(el('themeDark').getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('follows the clock when chosen', async () => {
+    await loadApp();
+    el('themeAuto').click();
+    setTime(3);
+    expect(theme()).toBe('night');
+    setTime(14);
+    expect(theme()).toBe('day');
+  });
+});
+
+describe('day log', () => {
+  it('jumps to the hour of an event mark when it is clicked', async () => {
+    await loadApp();
+    playStory('restless-night');
+    await vi.advanceTimersByTimeAsync(120 * 24 + 50);   // run complete
+    const mark = document.querySelector<HTMLButtonElement>('[data-lane="fall"] .lane-mark[data-hour="4"]');
+    expect(mark).not.toBeNull();
+    mark!.click();
+    expect(el('clockTime').textContent).toBe('04:00');
+    expect(el('logDetail').textContent).toContain('Fall risk elevated');
   });
 });

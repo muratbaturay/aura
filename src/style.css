@@ -210,6 +210,12 @@ body {
   min-width: 0;
 }
 
+@media (max-width: 700px) {
+  /* On phones the header wraps; let it scroll away instead of pinning a quarter of the screen */
+  .app-header { position: static; }
+  .header-divider, .clock-part { display: none; }
+}
+
 @media (max-width: 1100px) {
   .care-grid {
     grid-template-columns: minmax(0, 1fr);
@@ -504,6 +510,184 @@ body {
 #btnAck {
   flex-basis: 100%;
   min-height: 44px;
+}
+
+/* ── Theme switch ────────────────────────────────────────── */
+
+.theme-switch {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--r-full);
+  background: var(--c-bg-inset);
+}
+
+.theme-switch button {
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--c-text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.theme-switch button:hover {
+  color: var(--c-text);
+}
+
+.theme-switch button[aria-checked="true"] {
+  background: var(--c-bg-raised);
+  color: var(--c-text);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ── Day log: event lanes ────────────────────────────────── */
+
+.day-log {
+  grid-column: 1 / -1;
+}
+
+.lanes {
+  --lane-label: 128px;
+  --night-shade: color-mix(in srgb, var(--ring-night) 35%, transparent);
+  position: relative;
+  /* Night hours (22–06) shaded behind the cells */
+  background-image: linear-gradient(to right,
+    transparent var(--lane-label),
+    var(--night-shade) var(--lane-label),
+    var(--night-shade) calc(var(--lane-label) + (100% - var(--lane-label)) * 0.25),
+    transparent calc(var(--lane-label) + (100% - var(--lane-label)) * 0.25),
+    transparent calc(var(--lane-label) + (100% - var(--lane-label)) * 0.9167),
+    var(--night-shade) calc(var(--lane-label) + (100% - var(--lane-label)) * 0.9167));
+  border-radius: var(--r-sm);
+}
+
+.lane-row {
+  display: grid;
+  grid-template-columns: var(--lane-label) repeat(24, minmax(0, 1fr));
+  align-items: center;
+  min-height: 32px;
+}
+
+.lane-row + .lane-row {
+  border-top: 1px solid var(--c-divider);
+}
+
+.lane-axis {
+  min-height: 20px;
+}
+
+.lane-label {
+  font-size: var(--fs-sm);
+  color: var(--c-text-muted);
+  padding-right: var(--sp-3);
+}
+
+.lane-tick {
+  font-size: 10px;
+  color: var(--c-text-dim);
+}
+
+.lane-cell {
+  height: 32px;
+  display: flex;
+}
+
+.lane-mark {
+  flex: 1;
+  border: none;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lane-mark::before {
+  content: '';
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  background: var(--mark);
+  transition: transform var(--dur-fast) ease;
+}
+
+.lane-mark[data-sev="Low"]::before {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c-text) 35%, transparent);
+}
+
+.lane-mark:hover::before {
+  transform: scale(1.25);
+}
+
+.lane-now {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  left: calc(var(--lane-label) + (100% - var(--lane-label)) * var(--now, 0));
+  transform: translateX(-1px);
+  background: var(--c-text);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.log-detail {
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--c-divider);
+  min-height: 44px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.log-line {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: var(--fs-base);
+  line-height: 1.5;
+}
+
+.log-dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  align-self: center;
+  border-radius: 2px;
+}
+
+.log-time {
+  font-size: var(--fs-sm);
+  color: var(--c-text-dim);
+}
+
+.log-text strong {
+  font-weight: var(--fw-semibold);
+}
+
+.log-quiet,
+.log-hint {
+  color: var(--c-text-dim);
+}
+
+.log-hint {
+  margin: 0;
+  font-size: var(--fs-sm);
+}
+
+@media (max-width: 700px) {
+  .lanes { --lane-label: 76px; }
+  .lane-label { font-size: 11px; padding-right: var(--sp-1); }
+  .lane-tick { font-size: 9px; }
+  .lane-mark::before { width: 8px; height: 8px; border-radius: 2px; }
 }
 
 /* ── Playback ────────────────────────────────────────────── */
@@ -994,81 +1178,6 @@ body {
   border-radius: var(--r-md);
   margin: 0;
   border-left: 3px solid var(--c-divider);
-}
-
-/* ── Event Feed ──────────────────────────────────────────── */
-
-.event-feed {
-  max-height: 340px;
-  overflow-y: auto;
-  scrollbar-gutter: stable;
-}
-
-.empty-feed {
-  color: var(--c-text-dim);
-  font-size: var(--fs-sm);
-  text-align: center;
-  padding: var(--sp-8) var(--sp-5);
-}
-
-.event-item {
-  padding: var(--sp-3) var(--sp-4);
-  border-radius: var(--r-md);
-  margin-bottom: var(--sp-2);
-  background: var(--c-bg-inset);
-  display: grid;
-  grid-template-columns: 48px 1fr auto;
-  gap: var(--sp-2);
-  align-items: center;
-  font-size: var(--fs-sm);
-  border-left: 3px solid var(--c-border);
-  transition: background var(--dur-fast);
-}
-
-.event-item.event-high {
-  border-left-color: var(--c-red);
-  background: var(--c-red-bg);
-}
-
-.event-item.event-medium {
-  border-left-color: var(--c-amber);
-  background: var(--c-amber-bg);
-}
-
-.event-item.event-low {
-  border-left-color: var(--c-green);
-}
-
-.event-time {
-  font-weight: var(--fw-bold);
-  font-variant-numeric: tabular-nums;
-  font-size: var(--fs-xs);
-  color: var(--c-text-muted);
-}
-
-.event-label {
-  font-weight: var(--fw-medium);
-  color: var(--c-text-2);
-}
-
-.event-badge {
-  font-size: 10px;
-  font-weight: var(--fw-bold);
-  text-transform: uppercase;
-  padding: 2px 8px;
-  border-radius: var(--r-full);
-}
-
-.badge-low    { background: var(--c-green-bg); color: var(--c-green); }
-.badge-medium { background: var(--c-amber-bg); color: var(--c-amber); }
-.badge-high   { background: var(--c-red-bg); color: var(--c-red); }
-
-.event-detail {
-  grid-column: 1 / -1;
-  font-size: var(--fs-xs);
-  color: var(--c-text-muted);
-  margin: 2px 0 0;
-  line-height: var(--lh-normal);
 }
 
 /* ── LLM Config Section ──────────────────────────────────── */

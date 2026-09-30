@@ -11,7 +11,8 @@ import { simulate24h, startStateFor } from './simulation';
 import { createRng, randomSeed, parseSeed } from './rng';
 import { SCENARIOS } from './scenarios';
 import { haloView, scoreBarSegments } from './view';
-import { themeFor, partOfDay } from './theme';
+import { themeFor, partOfDay, resolveTheme, loadThemePreference, saveThemePreference, type ThemePreference } from './theme';
+import { eventLanes, hourEvents } from './lanes';
 import { createPlayback, type Playback } from './playback';
 import { levelChapters, chaptersView, type Chapter } from './chapters';
 import { setupRing, updateRing } from './ui/ring';
@@ -40,6 +41,9 @@ let runSnapshots: SimulationSnapshot[] = [];  // all 24 hours of the current run
 let runChapters: Chapter[] = [];              // story beats (or level changes) for the current run
 let ack: AckState = { status: 'none' };       // staff acknowledgement of the current alert
 let ackTicker: ReturnType<typeof setInterval> | null = null;
+let themePref: ThemePreference = loadThemePreference();
+let runComplete = false;                      // after the first full playthrough the log shows the whole day
+let lanesKey = '';                            // rebuild the lanes only when their content changes
 let lastRun: { seed: number; start: CurrentState } | null = null; // for exact random-day replay
 let currentRun: { name: string; seed: number } | null = null; // shown in the header chip
 let selectedScenarioId = '';   // '' = random day
@@ -125,6 +129,17 @@ document.getElementById('btnStudioClose')!.addEventListener('click', () => studi
 setupScenarioUI();
 setupPlaybackBar();
 setupRing(document.getElementById('ringCard')!);
+document.querySelector('.theme-switch')!.addEventListener('click', e => {
+  const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-theme-pref]');
+  if (!btn) return;
+  themePref = btn.dataset.themePref as ThemePreference;
+  saveThemePreference(themePref);
+  renderHeader();
+});
+document.getElementById('lanes')!.addEventListener('click', e => {
+  const mark = (e.target as HTMLElement).closest<HTMLButtonElement>('.lane-mark');
+  if (mark && playback) playback.seek(Number(mark.dataset.hour));
+});
 document.getElementById('btnAck')!.addEventListener('click', () => dispatchAck({ type: 'acknowledge', now: Date.now() }));
 
 // ── LLM Config UI Binding ───────────────────────────────────
@@ -392,7 +407,7 @@ function update() {
   renderTimelineChart(document.getElementById('timelineChart')!, simSnapshots);
 
   // Event feed
-  renderEventFeed();
+  renderDayLog();
 
   // LLM: gated trigger (no call during sim, no recursive loop)
   maybeRequestLLM(intervention, risks, explanation);
@@ -508,13 +523,17 @@ function renderLLMErrorState(msg: string) {
 
 /** Theme, clock and resident line follow the simulated time of day. */
 function renderHeader() {
-  const theme = themeFor(state.timeOfDay, DEFAULT_BASELINE);
+  const nightHour = themeFor(state.timeOfDay, DEFAULT_BASELINE) === 'night';
+  const theme = resolveTheme(themePref, state.timeOfDay, DEFAULT_BASELINE);
   document.documentElement.dataset.theme = theme;
+  document.querySelectorAll<HTMLButtonElement>('.theme-switch [data-theme-pref]').forEach(b =>
+    b.setAttribute('aria-checked', String(b.dataset.themePref === themePref)));
   document.getElementById('residentSub')!.textContent = theme === 'night' ? 'Care view · night display' : 'Care view';
-  document.getElementById('clockIcon')!.innerHTML = theme === 'night' ? icons.moon : icons.sun;
+  // The clock and the day title describe the time, whatever the display theme
+  document.getElementById('clockIcon')!.innerHTML = nightHour ? icons.moon : icons.sun;
   document.getElementById('clockTime')!.textContent = formatSliderVal('time', state.timeOfDay);
   document.getElementById('clockPart')!.textContent = partOfDay(state.timeOfDay);
-  document.getElementById('dayTitle')!.textContent = theme === 'night' ? 'Tonight' : 'Today';
+  document.getElementById('dayTitle')!.textContent = nightHour ? 'Tonight' : 'Today';
 }
 
 /** Update the status card in place (re-rendering would restart the halo's breathing). */
@@ -552,21 +571,48 @@ function renderStatus(risks: RiskScores, intervention: InterventionOutput) {
   document.getElementById('vitalSpo2')!.textContent = String(+state.spO2.toFixed(1));
 }
 
-function renderEventFeed() {
-  const feed = document.getElementById('eventFeed')!;
-  const last10 = timelineEvents.slice(-10).reverse();
-  if (last10.length === 0) {
-    feed.innerHTML = '<p class="empty-feed">Events will appear during simulation.</p>';
+const SEVERITY_FILL: Record<string, string> = { Low: 'var(--c-level-1)', Medium: 'var(--c-level-2)', High: 'var(--c-level-4)' };
+
+/**
+ * Day log: one lane per kind of event across the 24 hours. The first playthrough
+ * reveals hours as they play; once complete, the whole day stays visible for review.
+ */
+function renderDayLog() {
+  const events = runComplete ? runSnapshots.flatMap(sn => sn.events) : timelineEvents;
+  const hour = Math.floor(state.timeOfDay) % 24;
+  const lanesEl = document.getElementById('lanes')!;
+
+  const key = `${currentRun?.seed ?? '-'}:${runComplete ? 'all' : simSnapshots.length}`;
+  if (key !== lanesKey) {
+    lanesKey = key;
+    const axis = Array.from({ length: 24 }, (_, h) =>
+      `<span class="lane-tick mono">${h % 4 === 0 ? String(h).padStart(2, '0') : ''}</span>`).join('');
+    lanesEl.innerHTML = `
+      <div class="lane-row lane-axis" aria-hidden="true"><span class="lane-label"></span>${axis}</div>
+      ${eventLanes(events).map(lane => `
+      <div class="lane-row" data-lane="${lane.id}">
+        <span class="lane-label">${lane.label}</span>
+        ${lane.cells.map(c => c.severity === null ? '<span class="lane-cell"></span>' : `
+        <span class="lane-cell"><button type="button" class="lane-mark" data-hour="${c.hour}"
+          data-sev="${c.severity}" style="--mark:${SEVERITY_FILL[c.severity]}"
+          aria-label="${String(c.hour).padStart(2, '0')}:00 · ${escapeHtml(c.events[0].label)} · ${c.severity}"></button></span>`).join('')}
+      </div>`).join('')}
+      <span class="lane-now" id="laneNow" aria-hidden="true"></span>`;
+  }
+  const now = document.getElementById('laneNow')!;
+  now.hidden = !playback;
+  now.style.setProperty('--now', String((hour + 0.5) / 24));
+
+  const detail = document.getElementById('logDetail')!;
+  if (!playback) {
+    detail.innerHTML = '<p class="log-hint">Play a day from the Scenario studio to see its events.</p>';
     return;
   }
-  feed.innerHTML = last10.map(e => `
-    <div class="event-item event-${e.urgency.toLowerCase()}">
-      <span class="event-time">${e.time.toString().padStart(2, '0')}:00</span>
-      <span class="event-label">${e.label}</span>
-      <span class="event-badge badge-${e.urgency.toLowerCase()}">${e.urgency}</span>
-      <p class="event-detail">${e.detail}</p>
-    </div>
-  `).join('');
+  const here = hourEvents(events, hour);
+  const hh = `${String(hour).padStart(2, '0')}:00`;
+  detail.innerHTML = here.length === 0
+    ? `<p class="log-line"><span class="log-time mono">${hh}</span><span class="log-text log-quiet">Nothing noted this hour.</span></p>`
+    : here.map(e => `<p class="log-line"><span class="log-dot" style="background:${SEVERITY_FILL[e.urgency]}"></span><span class="log-time mono">${hh}</span><span class="log-text"><strong>${escapeHtml(e.label)}</strong> — ${escapeHtml(e.detail)}</span></p>`).join('');
 }
 
 // ── Simulation ──────────────────────────────────────────────
@@ -657,6 +703,7 @@ function runSimulation() {
   const start = startStateFor(seed, state, lastRun);
   lastRun = { seed, start: { ...start } };
   runSnapshots = simulate24h(DEFAULT_BASELINE, start, { rng: createRng(seed), scenario });
+  runComplete = false;
   runChapters = scenario?.chapters ?? levelChapters(runSnapshots.map(sn => sn.intervention.level));
   buildChapters();
 
@@ -666,6 +713,7 @@ function runSimulation() {
     intervalMs: speedMs,
     onFrame: showHour,
     onEnd: () => {
+      runComplete = true;
       simRunning = false; // the run is over: adaptive messages may update once
       document.getElementById('seedNote')!.textContent = `Ran seed ${seed}`;
       setRunning(false, 'Complete');
@@ -705,6 +753,7 @@ function leaveRun() {
   currentRun = null;
   simRunning = false;
   runChapters = [];
+  runComplete = false;
   buildChapters();
   setRunning(false, '');
   renderPlaybackBar();
