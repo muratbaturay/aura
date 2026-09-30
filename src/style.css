@@ -254,6 +254,65 @@ body {
   border-radius: 3px;
 }
 
+/* ── Playback ────────────────────────────────────────────── */
+
+.playback-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: var(--sp-5);
+}
+
+.playback-bar[hidden] {
+  display: none;
+}
+
+.pb-btn {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1px solid var(--c-border);
+  background: transparent;
+  color: var(--c-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.pb-btn:hover {
+  background: var(--c-bg-inset);
+}
+
+.pb-main {
+  width: 52px;
+  height: 52px;
+  border: none;
+  background: var(--c-text);
+  color: var(--c-text-inv);
+}
+
+.pb-main:hover {
+  background: var(--c-text-2);
+}
+
+.pb-track {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: var(--sp-2);
+}
+
+.pb-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--fs-xs);
+  color: var(--c-text-dim);
+}
+
 /* ── Scenario studio drawer ──────────────────────────────── */
 
 .studio-backdrop {

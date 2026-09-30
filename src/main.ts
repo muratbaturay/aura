@@ -12,6 +12,7 @@ import { createRng, randomSeed, parseSeed } from './rng';
 import { SCENARIOS } from './scenarios';
 import { haloView, scoreBarSegments } from './view';
 import { themeFor, partOfDay } from './theme';
+import { createPlayback, type Playback } from './playback';
 import { buildHTML } from './ui/template';
 import { createDrawer } from './ui/drawer';
 import { icons } from './ui/icons';
@@ -31,7 +32,8 @@ let simSnapshots: SimulationSnapshot[] = [];
 let llmConfig: LLMConfig = loadLLMConfig();
 let lastLLMMessages: LLMGeneratedMessages | null = null;
 let simRunning = false;
-let runId = 0; // bumped by each run and by Reset; a playback loop stops when its id is stale
+let playback: Playback | null = null;         // the current run's player (null in manual mode)
+let runSnapshots: SimulationSnapshot[] = [];  // all 24 hours of the current run
 let lastRun: { seed: number; start: CurrentState } | null = null; // for exact random-day replay
 let currentRun: { name: string; seed: number } | null = null; // shown in the header chip
 let selectedScenarioId = '';   // '' = random day
@@ -93,6 +95,7 @@ const wearToggle = document.getElementById('wearToggle') as HTMLInputElement;
 wearToggle.checked = state.useWearables;
 wearToggle.addEventListener('change', () => {
   state.useWearables = wearToggle.checked;
+  leaveRun();
   highStreak = 0;
   syncWearablesUI();
   update();
@@ -114,6 +117,7 @@ const studio = createDrawer(
 document.getElementById('btnStudio')!.addEventListener('click', () => studio.open());
 document.getElementById('btnStudioClose')!.addEventListener('click', () => studio.close());
 setupScenarioUI();
+setupPlaybackBar();
 
 // ── LLM Config UI Binding ───────────────────────────────────
 setupLLMConfigUI();
@@ -577,13 +581,14 @@ function setupScenarioUI() {
 
 function setSpeed(ms: number) {
   speedMs = ms;
+  playback?.setIntervalMs(ms);
+  if (playback) renderPlaybackBar();
   document.querySelectorAll<HTMLButtonElement>('#speedControl [data-speed]').forEach(b =>
     b.setAttribute('aria-checked', String(Number(b.dataset.speed) === ms)));
 }
 
 /** Lock or unlock the controls a run would overwrite, and update the header's story chip. */
 function setRunning(on: boolean, status: string) {
-  simRunning = on;
   document.querySelectorAll<HTMLInputElement>('.studio .slider').forEach(el => { el.disabled = on; });
   document.querySelectorAll<HTMLButtonElement>('.story-card').forEach(el => { el.disabled = on; });
   for (const id of ['wearToggle', 'seedInput', 'btnNewSeed', 'btnRandomize', 'btnSimulate']) {
@@ -604,51 +609,107 @@ function syncWearablesUI() {
   document.getElementById('vitalsSection')!.classList.toggle('hidden', !state.useWearables);
 }
 
-async function runSimulation() {
-  const myRun = ++runId;
+function runSimulation() {
   const scenario = SCENARIOS.find(sc => sc.id === selectedScenarioId);
   const seed = parseSeed(seedInput.value) ?? randomSeed();
   studio.close();
+  playback?.stop();
   currentRun = { name: scenario?.name ?? 'Random day', seed };
-  timelineEvents = [];
-  simSnapshots = [];
-  highStreak = 0;
 
-  // Lock out LLM for the entire simulation run
-  setRunning(true, 'Running');
+  // No LLM calls from here until the run reaches its last hour
+  simRunning = true;
   stopLLMWork();
   lastLLMMessages = null;
   prevSignature = '';
 
   const start = startStateFor(seed, state, lastRun);
   lastRun = { seed, start: { ...start } };
-  const snapshots = simulate24h(DEFAULT_BASELINE, start, { rng: createRng(seed), scenario });
+  runSnapshots = simulate24h(DEFAULT_BASELINE, start, { rng: createRng(seed), scenario });
 
-  for (const snap of snapshots) {
-    if (myRun !== runId) return; // Reset or a newer run took over
-    simSnapshots.push(snap);
+  setRunning(true, 'Playing');
+  playback = createPlayback({
+    length: runSnapshots.length,
+    intervalMs: speedMs,
+    onFrame: showHour,
+    onEnd: () => {
+      simRunning = false; // the run is over: adaptive messages may update once
+      document.getElementById('seedNote')!.textContent = `Ran seed ${seed}`;
+      setRunning(false, 'Complete');
+      update();
+      renderPlaybackBar();
+    },
+  });
+  playback.play();
+}
 
-    Object.assign(state, snap.state);
-    timelineEvents.push(...snap.events);
-    highStreak = snap.highStreak; // same streak the simulation used, so the level matches
+/** Show hour i of the current run: the state, the events so far and the streak it used. */
+function showHour(i: number) {
+  const snap = runSnapshots[i];
+  simSnapshots = runSnapshots.slice(0, i + 1);
+  timelineEvents = simSnapshots.flatMap(sn => sn.events);
+  Object.assign(state, snap.state);
+  highStreak = snap.highStreak; // same streak the simulation used, so the level matches
+  simRunning = true;            // mid-run and reviewing an hour both keep LLM calls off
+  syncSlidersFromState();
+  syncWearablesUI();
+  update();
+  renderPlaybackBar();
+}
 
-    syncSlidersFromState();
-    syncWearablesUI();
-    update(); // LLM gated out by simRunning flag
+/** Manual input or Reset: drop the run and its history, back to manual mode. */
+function leaveRun() {
+  if (!playback) return;
+  playback.stop();
+  playback = null;
+  runSnapshots = [];
+  simSnapshots = [];
+  timelineEvents = [];
+  currentRun = null;
+  simRunning = false;
+  setRunning(false, '');
+  renderPlaybackBar();
+}
 
-    await sleep(speedMs);
+function setupPlaybackBar() {
+  const bar = document.getElementById('playbackBar')!;
+  bar.innerHTML = `
+    <button type="button" id="pbPrev" class="pb-btn" aria-label="Previous hour">${icons.prev}</button>
+    <button type="button" id="pbPlay" class="pb-btn pb-main" aria-label="Pause"></button>
+    <button type="button" id="pbNext" class="pb-btn" aria-label="Next hour">${icons.next}</button>
+    <div class="pb-track">
+      <input type="range" id="pbScrub" class="slider" min="0" max="23" step="1" value="0" aria-label="Hour of the simulated day" />
+      <div class="pb-labels mono"><span>00:00</span><span id="pbSpeed"></span><span>24:00</span></div>
+    </div>`;
+  document.getElementById('pbPrev')!.addEventListener('click', () => playback?.step(-1));
+  document.getElementById('pbNext')!.addEventListener('click', () => playback?.step(1));
+  document.getElementById('pbPlay')!.addEventListener('click', () => {
+    if (!playback) return;
+    if (playback.state().status === 'playing') playback.pause(); else playback.play();
+    renderPlaybackBar();
+  });
+  document.getElementById('pbScrub')!.addEventListener('input', e => {
+    playback?.seek(Number((e.target as HTMLInputElement).value));
+  });
+}
+
+function renderPlaybackBar() {
+  const bar = document.getElementById('playbackBar')!;
+  bar.hidden = !playback;
+  if (!playback) return;
+  const { index, status } = playback.state();
+  const playing = status === 'playing';
+  const playBtn = document.getElementById('pbPlay')!;
+  playBtn.innerHTML = playing ? icons.pause : icons.play;
+  playBtn.setAttribute('aria-label', playing ? 'Pause' : status === 'ended' ? 'Replay the day' : 'Play');
+  (document.getElementById('pbScrub') as HTMLInputElement).value = String(Math.max(0, index));
+  document.getElementById('pbSpeed')!.textContent = `${speedMs / 1000} s per hour`;
+  if (currentRun && status !== 'ended') {
+    document.getElementById('storyStatus')!.textContent = playing ? 'Playing' : 'Paused';
   }
-  if (myRun !== runId) return;
-
-  // Simulation complete — unlock LLM, do one final update
-  document.getElementById('seedNote')!.textContent = `Ran seed ${seed}`;
-  setRunning(false, 'Complete');
-  update(); // This will trigger maybeRequestLLM if signature changed
 }
 
 function resetAll() {
-  runId++; // stops any playback in progress
-  currentRun = null;
+  leaveRun();
   state = defaultState();
   highStreak = 0;
   timelineEvents = [];
@@ -674,6 +735,7 @@ function randomize() {
     state.heartRate = 55 + Math.random() * 75;
     state.spO2 = 88 + Math.random() * 12;
   }
+  leaveRun();
   highStreak = 0;
   lastLLMMessages = null;
   prevSignature = '';
@@ -697,6 +759,7 @@ function bindSlider(
   slider.addEventListener('input', () => {
     const v = parseFloat(slider.value);
     setter(v);
+    leaveRun(); // manual input ends any run under review
     highStreak = 0; // "repeated high" only means something inside a simulated day
     display.textContent = formatSliderVal(id, v);
     update();
@@ -730,10 +793,6 @@ function setSl(id: string, v: number) {
   const disp = document.getElementById(`${id}Val`) as HTMLSpanElement | null;
   if (sl) sl.value = String(v);
   if (disp) disp.textContent = formatSliderVal(id, v);
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise(r => setTimeout(r, ms));
 }
 
 function escapeHtml(text: string): string {
