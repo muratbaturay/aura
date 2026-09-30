@@ -10,6 +10,8 @@ export interface Assessment {
   standing: RiskScores;         // absolute risk now (how risky she is)
   usual: RiskScores;            // absolute risk at her usual state for this hour
   alert: RiskScores;            // change from her usual: what drives the ladder
+  combined: number;             // overall alert before red-flag floors
+  fallReference: 'usual' | 'usual when up'; // what fall risk is compared with (at night: when up)
   explanation: ExplanationOutput;
 }
 
@@ -90,7 +92,8 @@ export function assess(state: CurrentState, resident: Resident): Assessment {
     .map(([factor, p]) => ({ factor, points: p * scale }))
     .sort((a, b) => b.points - a.points);
 
-  return { standing, usual, alert, explanation: explain(factors, alert.overall, resident.name) };
+  const fallReference = night && timeUp(state, baseline) >= 0.25 ? 'usual when up' : 'usual';
+  return { standing, usual, alert, combined, fallReference, explanation: explain(factors, alert.overall, resident.name) };
 }
 
 function explain(factors: ExplanationFactor[], overall: number, name: string): ExplanationOutput {

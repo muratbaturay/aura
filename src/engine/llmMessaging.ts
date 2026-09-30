@@ -59,7 +59,7 @@ RULES — RESIDENT MESSAGE:
 
 RULES — STAFF MESSAGE:
 - Concise cause-and-effect reasoning in 1–2 sentences.
-- Include the specific risk scores and top contributing factor.
+- Name the top contributing factor and the risk compared with the resident's usual (e.g. "fall risk 90, usual 77"). Scores are 0–100 indices, never percentages.
 - Actionable: what to check or do.
 - For Level 1 and Level 2, set to null (no staff alert needed).
 - Professional but warm tone.
@@ -74,9 +74,17 @@ RULES — EXPLANATION TEXT:
 NEVER output anything outside the JSON object. No markdown fences.`;
 }
 
-function buildUserPrompt(ctx: LLMMessageContext): string {
+export function buildUserPrompt(ctx: LLMMessageContext): string {
   const timeStr = `${Math.floor(ctx.timeOfDay).toString().padStart(2, '0')}:${Math.floor((ctx.timeOfDay % 1) * 60).toString().padStart(2, '0')}`;
   const isNight = ctx.timeOfDay >= 22 || ctx.timeOfDay < 6;
+
+  // Risk now with her usual, and the change band that drives the level
+  const riskLine = (label: string, d: 'fall' | 'cognitive' | 'loneliness') => {
+    const change = `${urgencyBand(ctx.riskScores[d])} (${Math.round(ctx.riskScores[d])}/100)`;
+    return ctx.standingScores && ctx.usualScores
+      ? `- ${label}: ${Math.round(ctx.standingScores[d])} (usual ${Math.round(ctx.usualScores[d])}); change from usual: ${change}`
+      : `- ${label}: ${change}`;
+  };
 
   let vitalsNote = '';
   if (ctx.useWearables && ctx.heartRate !== undefined && ctx.spO2 !== undefined) {
@@ -86,11 +94,11 @@ function buildUserPrompt(ctx: LLMMessageContext): string {
   return `CONTEXT:
 - Resident: ${ctx.residentProfile.name}, age ${ctx.residentProfile.age}
 - Mobility baseline: ${ctx.residentProfile.mobilityBaseline}/100
-- Cognitive concern level: ${ctx.residentProfile.cognitiveConcernLevel}
+- Cognitive concern vs usual: ${ctx.residentProfile.cognitiveConcernLevel}
 - Time: ${timeStr} (${isNight ? 'nighttime' : 'daytime'})
-- Fall risk vs usual: ${Math.round(ctx.riskScores.fall)}/100 (${urgencyBand(ctx.riskScores.fall)})
-- Cognitive concern vs usual: ${Math.round(ctx.riskScores.cognitive)}/100 (${urgencyBand(ctx.riskScores.cognitive)})
-- Loneliness vs usual: ${Math.round(ctx.riskScores.loneliness)}/100 (${urgencyBand(ctx.riskScores.loneliness)})
+${riskLine('Fall risk', 'fall')}
+${riskLine('Cognitive concern', 'cognitive')}
+${riskLine('Loneliness', 'loneliness')}
 - Overall urgency: ${Math.round(ctx.riskScores.overall)}/100 (${urgencyBand(ctx.riskScores.overall)})
 - Intervention level: ${ctx.interventionLevel} — ${LEVEL_LABELS[ctx.interventionLevel]}
 - Top contributing factors: ${ctx.topContributingFactors.join(', ')}

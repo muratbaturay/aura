@@ -120,3 +120,29 @@ describe('messages', () => {
     expect(out.staffMessage).not.toMatch(/\d%/);
   });
 });
+
+describe('final review fixes: scores in words', () => {
+  it('labels the night fall reference as her usual when up', () => {
+    const up = at(eleanor, 3, { restlessness: 75 });
+    expect(up.fallReference).toBe('usual when up');
+    expect(at(eleanor, 3).fallReference).toBe('usual');
+    expect(at(eleanor, 14).fallReference).toBe('usual');
+  });
+
+  it('quotes risk with its usual in staff messages, not the change score', () => {
+    const patch = { socialIsolation: 95, mobility: 30 };
+    const s = { ...usualStateAt(joseph, 14), ...patch };
+    const a = assess(s, joseph);
+    const msg = selectIntervention(s, a.alert, 0, joseph, a).staffMessage!;
+    expect(msg).toContain(`${Math.round(a.standing.loneliness)} (usual ${Math.round(a.usual.loneliness)})`);
+    expect(msg).not.toContain(`(${Math.round(a.alert.loneliness)})`);
+  });
+
+  it('prints staff load as an index, not a percentage', () => {
+    const s = { ...usualStateAt(walter, 3), restlessness: 75, staffLoad: 82 }; // up at night: Level 3
+    const a = assess(s, walter);
+    const msg = selectIntervention(s, a.alert, 0, walter, a).staffMessage!;
+    expect(msg).toMatch(/staff load high \(82\/100\)/i);
+    expect(msg).not.toMatch(/\d%/);
+  });
+});

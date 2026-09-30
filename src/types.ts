@@ -105,7 +105,9 @@ export interface ResidentProfile {
 
 export interface LLMMessageContext {
   residentProfile: ResidentProfile;
-  riskScores: RiskScores;
+  riskScores: RiskScores;          // what drives the level (change from usual, when given with the two below)
+  standingScores?: RiskScores;     // risk now
+  usualScores?: RiskScores;        // her usual risk at this hour
   timeOfDay: number;
   interventionLevel: InterventionLevel;
   topContributingFactors: string[];

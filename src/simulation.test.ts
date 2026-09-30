@@ -202,3 +202,24 @@ describe('residents on random days', () => {
     expect(snaps[12].state.mobility).toBeLessThan(walter.usual.mobility + 10);
   });
 });
+
+describe('final review fixes: events', () => {
+  it("never names another resident in AURA's action log", () => {
+    const walter = residentById('walter');
+    const details = Array.from({ length: 60 }, (_, i) => simulate24h(walter, walter.usual, { rng: createRng(i + 1) }))
+      .flatMap(d => d.flatMap(s => s.events.map(e => e.detail)));
+    expect(details.some(d => /Gentle prompt to Walter/.test(d))).toBe(true);
+    expect(details.some(d => /Eleanor/.test(d))).toBe(false);
+  });
+
+  it('does not claim a main driver when a red flag set the level', () => {
+    const joseph = residentById('joseph');
+    const days = Array.from({ length: 80 }, (_, i) => simulate24h(joseph, joseph.usual, { rng: createRng(i + 1) }));
+    for (const s of days.flat()) {
+      if (s.alert.fall < 40 && s.alert.cognitive < 40 && s.alert.loneliness < 40 && s.state.spO2 < 92) {
+        const combined = Math.max(s.alert.fall, s.alert.cognitive, s.alert.loneliness);
+        if (combined * 1.2 < 40) expect(s.events.some(e => /main driver/i.test(e.detail)), `${s.hour}:00`).toBe(false);
+      }
+    }
+  });
+});

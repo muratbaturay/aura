@@ -188,3 +188,22 @@ describe('residents', () => {
     expect(el('fallUsual').textContent).toMatch(/usual \d+/);
   });
 });
+
+describe('final review fixes: page', () => {
+  it('drops a story choice whose resident is switched away in the header', async () => {
+    await loadApp();
+    el('btnStudio').click();
+    document.querySelector<HTMLButtonElement>('.story-card[data-id="sundowning"]')!.click();
+    el('btnResident').click();
+    document.querySelector<HTMLButtonElement>('#residentMenu [data-id="walter"]')!.click();
+    expect(el('btnSimulateLabel').textContent).toBe('Play a random day');
+  });
+
+  it("labels the usual tick as 'usual when up' when she is up at night", async () => {
+    await loadApp();
+    setTime(3);
+    const r = el<HTMLInputElement>('restlessnessSlider');
+    r.value = '75'; r.dispatchEvent(new Event('input'));
+    expect(el('fallUsual').textContent).toMatch(/usual when up/);
+  });
+});

@@ -60,8 +60,8 @@ export function simulate24h(
 
     const assessment = assess(state, resident);
     const { standing, alert } = assessment;
-    const intervention = selectIntervention(state, alert, highStreak, resident);
-    const events = generateEvents(h, state, assessment, night, intervention, prevLevel);
+    const intervention = selectIntervention(state, alert, highStreak, resident, assessment);
+    const events = generateEvents(h, state, assessment, night, intervention, prevLevel, resident.name);
     prevLevel = intervention.level;
 
     snapshots.push({
@@ -158,12 +158,12 @@ function randomDrift(
   }
 }
 
-const ACTION_LABELS: Record<InterventionLevel, string> = {
+const actionLabel = (level: InterventionLevel, name: string): string => ({
   1: 'Ambient cue',
-  2: 'Gentle prompt to Eleanor',
+  2: `Gentle prompt to ${name}`,
   3: 'Staff soft alert sent',
   4: 'Escalated: priority to staff',
-};
+})[level];
 
 /**
  * What the day log records for one hour. Signal events follow the same bands as
@@ -178,8 +178,9 @@ function generateEvents(
   night: boolean,
   intervention: InterventionOutput,
   prevLevel: InterventionLevel,
+  name: string,
 ): TimelineEvent[] {
-  const { standing, usual, alert } = assessment;
+  const { standing, usual, alert, combined, fallReference } = assessment;
   const events: TimelineEvent[] = [];
   const h = `${hour.toString().padStart(2, '0')}:00`;
   const add = (label: string, urgency: TimelineEvent['urgency'], detail: string) =>
@@ -195,11 +196,13 @@ function generateEvents(
   };
   const driver = (['fall', 'cognitive', 'loneliness'] as const)
     .reduce((a, b) => (alert[b] > alert[a] ? b : a));
-  const combinedOnly = urgencyBand(alert.overall) !== 'Low' && Object.values(bands).every(b => b === 'Low');
+  // Only when the concerns themselves combine to Medium+; a red-flag floor is not a 'driver'
+  const combinedOnly = urgencyBand(combined) !== 'Low' && Object.values(bands).every(b => b === 'Low');
   const logged = (d: keyof typeof bands) => bands[d] !== 'Low' || (combinedOnly && d === driver);
   const driverNote = (d: keyof typeof bands) =>
     bands[d] === 'Low' ? ` Main driver of overall urgency ${Math.round(alert.overall)}.` : '';
-  const vsUsual = (d: keyof typeof bands) => `${Math.round(standing[d])} (usual ${Math.round(usual[d])})`;
+  const vsUsual = (d: keyof typeof bands) =>
+    `${Math.round(standing[d])} (${d === 'fall' ? fallReference : 'usual'} ${Math.round(usual[d])})`;
 
   if (logged('fall')) {
     add('Fall risk elevated', bands.fall, `Fall risk ${vsUsual('fall')} at ${h}.${driverNote('fall')}`);
@@ -229,7 +232,7 @@ function generateEvents(
 
   // ── What AURA did ──
   if (intervention.level >= 2 && intervention.level !== prevLevel) {
-    add('AURA acted', intervention.level === 2 ? 'Medium' : 'High', `${ACTION_LABELS[intervention.level]} at ${h}.`);
+    add('AURA acted', intervention.level === 2 ? 'Medium' : 'High', `${actionLabel(intervention.level, name)} at ${h}.`);
   }
 
   return events;

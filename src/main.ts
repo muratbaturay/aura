@@ -51,11 +51,13 @@ let lastRun: { seed: number; start: CurrentState } | null = null; // for exact r
 let currentRun: { name: string; seed: number } | null = null; // shown in the header chip
 let selectedScenarioId = '';   // '' = random day
 let speedMs = 120;             // playback interval per simulated hour
+let selectStory: (id: string) => void = () => {}; // set up by setupScenarioUI
 
 // Cached outputs for LLM panel re-renders without full update()
 let lastIntervention: InterventionOutput | null = null;
 let lastExplanation: ExplanationOutput | null = null;
 let lastRisks: RiskScores | null = null;
+let lastAssessment: Assessment | null = null;
 
 // ── LLM Controller (single instance) ────────────────────────
 const llm = createLLMController(600);
@@ -277,6 +279,8 @@ function buildLLMContext(
   return {
     residentProfile,
     riskScores: risks,
+    standingScores: lastAssessment?.standing,
+    usualScores: lastAssessment?.usual,
     timeOfDay: state.timeOfDay,
     interventionLevel,
     topContributingFactors: topFactors,
@@ -371,7 +375,8 @@ function update() {
   // Change from her usual drives the ladder, the halo and the explanation
   const assessment = assess(state, resident);
   const risks = assessment.alert;
-  const intervention = selectIntervention(state, risks, highStreak, resident);
+  const intervention = selectIntervention(state, risks, highStreak, resident, assessment);
+  lastAssessment = assessment;
   const explanation = assessment.explanation;
 
   // Cache for LLM panel re-renders
@@ -559,7 +564,8 @@ function renderStatus(a: Assessment, intervention: InterventionOutput) {
     fill.style.width = `${Math.min(100, a.standing[id])}%`;
     fill.dataset.band = band;
     document.getElementById(`${id}UsualTick`)!.style.left = `${Math.min(100, a.usual[id])}%`;
-    document.getElementById(`${id}Usual`)!.textContent = `usual ${Math.round(a.usual[id])}`;
+    document.getElementById(`${id}Usual`)!.textContent =
+      `${id === 'fall' ? a.fallReference : 'usual'} ${Math.round(a.usual[id])}`;
     document.getElementById(`${id}Band`)!.textContent = band;
     document.getElementById(`${id}Value`)!.textContent = String(Math.round(a.standing[id]));
   }
@@ -665,6 +671,9 @@ function selectResident(id: string) {
   leaveRun();
   dispatchAck({ type: 'reset' });
   lastRun = null;
+  // A chosen story belongs to its resident: drop it when switching away
+  const story = SCENARIOS.find(sc => sc.id === selectedScenarioId);
+  if (story && story.residentId !== id) selectStory('');
   resident = residentById(id);
   state = { ...resident.usual, timeOfDay: state.timeOfDay };
   highStreak = 0;
@@ -705,6 +714,7 @@ function setupScenarioUI() {
     document.getElementById('btnSimulateLabel')!.textContent = scenario ? `Play ${scenario.name}` : 'Play a random day';
     setSpeed(scenario ? 500 : 120);
   };
+  selectStory = select;
   list.addEventListener('click', e => {
     const card = (e.target as HTMLElement).closest<HTMLButtonElement>('.story-card');
     if (card && !card.disabled) select(card.dataset.id ?? '');
