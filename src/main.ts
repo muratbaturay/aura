@@ -7,7 +7,7 @@ import type {
 import { DEFAULT_BASELINE, defaultState, computeDeviations } from './baseline';
 import { computeRisks, urgencyBand, buildExplanation } from './risk';
 import { selectIntervention } from './intervention';
-import { simulate24h } from './simulation';
+import { simulate24h, startStateFor } from './simulation';
 import { createRng, randomSeed, parseSeed } from './rng';
 import { SCENARIOS } from './scenarios';
 import { renderComparisonChart, renderTimelineChart } from './chart';
@@ -27,6 +27,7 @@ let llmConfig: LLMConfig = loadLLMConfig();
 let lastLLMMessages: LLMGeneratedMessages | null = null;
 let simRunning = false;
 let runId = 0; // bumped by each run and by Reset; a playback loop stops when its id is stale
+let lastRun: { seed: number; start: CurrentState } | null = null; // for exact random-day replay
 
 // Cached outputs for LLM panel re-renders without full update()
 let lastIntervention: InterventionOutput | null = null;
@@ -540,7 +541,9 @@ async function runSimulation() {
   lastLLMMessages = null;
   prevSignature = '';
 
-  const snapshots = simulate24h(DEFAULT_BASELINE, state, { rng: createRng(seed), scenario });
+  const start = startStateFor(seed, state, lastRun);
+  lastRun = { seed, start: { ...start } };
+  const snapshots = simulate24h(DEFAULT_BASELINE, start, { rng: createRng(seed), scenario });
 
   for (const snap of snapshots) {
     if (myRun !== runId) return; // Reset or a newer run took over

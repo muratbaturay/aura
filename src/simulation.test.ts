@@ -3,7 +3,7 @@ import { DEFAULT_BASELINE, defaultState, computeDeviations } from './baseline';
 import { computeRisks } from './risk';
 import { selectIntervention } from './intervention';
 import { createRng } from './rng';
-import { simulate24h } from './simulation';
+import { simulate24h, startStateFor } from './simulation';
 import { valueAt, type Scenario } from './scenarios';
 
 const TEST_SCENARIO: Scenario = {
@@ -56,5 +56,27 @@ describe('simulate24h', () => {
         expect(s.intervention.level).toBe(selectIntervention(s.state, risks, s.highStreak).level);
       }
     }
+  });
+});
+
+describe('startStateFor', () => {
+  const current = { ...defaultState(), mobility: 22, timeOfDay: 23 };
+  const earlier = { ...defaultState(), mobility: 70, timeOfDay: 14 };
+
+  it('reuses the previous run\'s starting state when the same seed runs again', () => {
+    expect(startStateFor(123, current, { seed: 123, start: earlier })).toEqual(earlier);
+  });
+
+  it('starts from the current state for a new seed or the first run', () => {
+    expect(startStateFor(456, current, { seed: 123, start: earlier })).toEqual(current);
+    expect(startStateFor(123, current, null)).toEqual(current);
+  });
+
+  it('makes a typed-back random-day seed replay that day exactly', () => {
+    const firstStart = defaultState();
+    const first = run(123, undefined, firstStart);
+    const endOfDay = { ...first[23].state };             // where the page is left after the run
+    const replay = run(123, undefined, startStateFor(123, endOfDay, { seed: 123, start: firstStart }));
+    expect(replay).toEqual(first);
   });
 });

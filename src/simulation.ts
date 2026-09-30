@@ -24,6 +24,19 @@ const RANGE: Record<ScenarioSignal, [number, number]> = {
   heartRate: [40, 140], spO2: [85, 100],
 };
 
+/**
+ * A random day depends on its seed *and* the sliders it started from. When the
+ * same seed runs again, start from where that run started (not where it left
+ * the sliders at 23:00), so typing a shown seed back in replays the day exactly.
+ */
+export function startStateFor(
+  seed: number,
+  current: CurrentState,
+  lastRun: { seed: number; start: CurrentState } | null
+): CurrentState {
+  return lastRun && lastRun.seed === seed ? { ...lastRun.start } : { ...current };
+}
+
 export function simulate24h(
   baseline: ResidentBaseline,
   initialState: CurrentState,
