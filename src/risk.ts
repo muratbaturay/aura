@@ -22,7 +22,39 @@ export const VITALS_FLOOR: Record<VitalsFlag, number> = { none: 0, amber: 40, re
  * attributes them, so the explanation cannot drift from the score.
  */
 /** Share of fall vulnerability that remains while asleep in bed. */
-const ASLEEP_SHARE = 0.35;
+export const ASLEEP_SHARE = 0.35;
+
+/** Time up at night: restlessness at or below FROM is asleep, FROM + SPAN or above is a full hour up. */
+export const TIME_UP = { from: 25, span: 45 };
+
+/** Every weight in the standing-risk formulas (illustrative, not fitted to outcomes). */
+export const WEIGHTS = {
+  fall: {
+    unsteadiness: 0.35,        // × (100 − mobility)
+    lessSteadyThanBaseline: 5, // × z-score below her baseline mobility
+    restlessness: 0.2,
+    moreRestlessThanBaseline: 3,
+    upAtNight: 18,             // × time up at night
+    heartRateFrom: 110, heartRate: 0.5, // × beats above
+    spo2From: 92, spo2: 3,              // × points below
+  },
+  cognitive: {
+    speechDrift: 0.45,
+    moreDriftThanBaseline: 4,
+    nightRestlessness: 0.25,   // night wandering proxy
+  },
+  loneliness: {
+    isolation: 0.5,
+    moreIsolatedThanBaseline: 4,
+    lowActivity: 0.3,          // × max(0, activityFloor − activity)
+    activityFloor: 50,
+    activityMobility: 0.3,     // activity = 0.3 × mobility + 0.2 × (100 − restlessness)
+    activityCalm: 0.2,
+  },
+} as const;
+
+/** Urgency bands for any 0–100 score. */
+export const BANDS = { medium: 40, high: 70 } as const;
 
 /**
  * Share of the hour she is out of bed, 0–1. Awake hours count as up; at night it
@@ -31,7 +63,7 @@ const ASLEEP_SHARE = 0.35;
  */
 export function timeUp(state: CurrentState, baseline: ResidentBaseline): number {
   if (!isNightHour(state.timeOfDay, baseline)) return 1;
-  return Math.max(0, Math.min(1, (state.restlessness - 25) / 45));
+  return Math.max(0, Math.min(1, (state.restlessness - TIME_UP.from) / TIME_UP.span));
 }
 
 export function riskTerms(
@@ -46,33 +78,36 @@ export function riskTerms(
   // (falls from bed are real). Being up at night adds its own risk.
   const up = timeUp(state, baseline);
   const exposure = ASLEEP_SHARE + (1 - ASLEEP_SHARE) * up;
+  const F = WEIGHTS.fall;
   const fall: RiskTerm[] = [
     // Lower mobility stability → higher risk, amplified below personal baseline
-    { signal: 'mobility', points: exposure * ((100 - state.mobility) * 0.35 + Math.max(0, deviations.mobility) * 5) },
+    { signal: 'mobility', points: exposure * ((100 - state.mobility) * F.unsteadiness + Math.max(0, deviations.mobility) * F.lessSteadyThanBaseline) },
     // Higher restlessness → higher risk, amplified above personal baseline
-    { signal: 'restlessness', points: exposure * (state.restlessness * 0.20 + Math.max(0, deviations.restlessness) * 3) },
+    { signal: 'restlessness', points: exposure * (state.restlessness * F.restlessness + Math.max(0, deviations.restlessness) * F.moreRestlessThanBaseline) },
     // Out of bed at night (dark, drowsy)
-    { signal: 'night', points: night ? 18 * up : 0 },
+    { signal: 'night', points: night ? F.upAtNight * up : 0 },
   ];
   // Vitals influence
   if (state.useWearables) {
-    fall.push({ signal: 'heartRate', points: exposure * Math.max(0, state.heartRate - 110) * 0.5 });
-    fall.push({ signal: 'spO2', points: exposure * Math.max(0, 92 - state.spO2) * 3 });
+    fall.push({ signal: 'heartRate', points: exposure * Math.max(0, state.heartRate - F.heartRateFrom) * F.heartRate });
+    fall.push({ signal: 'spO2', points: exposure * Math.max(0, F.spo2From - state.spO2) * F.spo2 });
   }
 
   // ── Cognitive Concern Signal ──
+  const C = WEIGHTS.cognitive;
   const cognitive: RiskTerm[] = [
-    { signal: 'speech', points: state.speechDrift * 0.45 + Math.max(0, deviations.speech) * 4 },
+    { signal: 'speech', points: state.speechDrift * C.speechDrift + Math.max(0, deviations.speech) * C.moreDriftThanBaseline },
     // Night wandering proxy
-    { signal: 'restlessness', points: night ? state.restlessness * 0.25 : 0 },
+    { signal: 'restlessness', points: night ? state.restlessness * C.nightRestlessness : 0 },
   ];
 
   // ── Loneliness Risk ──
   // Low movement + high isolation
-  const activityProxy = state.mobility * 0.3 + (100 - state.restlessness) * 0.2;
+  const L = WEIGHTS.loneliness;
+  const activityProxy = state.mobility * L.activityMobility + (100 - state.restlessness) * L.activityCalm;
   const loneliness: RiskTerm[] = [
-    { signal: 'social', points: state.socialIsolation * 0.50 + Math.max(0, deviations.social) * 4 },
-    { signal: 'activity', points: Math.max(0, 50 - activityProxy) * 0.3 },
+    { signal: 'social', points: state.socialIsolation * L.isolation + Math.max(0, deviations.social) * L.moreIsolatedThanBaseline },
+    { signal: 'activity', points: Math.max(0, L.activityFloor - activityProxy) * L.lowActivity },
   ];
 
   return { fall, cognitive, loneliness };
@@ -130,8 +165,8 @@ export function vitalsFlag(state: CurrentState, t: VitalsTargets = DEFAULT_VITAL
 }
 
 export function urgencyBand(score: number): UrgencyBand {
-  if (score < 40) return 'Low';
-  if (score < 70) return 'Medium';
+  if (score < BANDS.medium) return 'Low';
+  if (score < BANDS.high) return 'Medium';
   return 'High';
 }
 

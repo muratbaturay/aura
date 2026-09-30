@@ -16,17 +16,17 @@ export interface Assessment {
 }
 
 /** Red flags while up at night, whatever her normal: a staff check (Level 3). */
-const UP_AT_NIGHT_FLOOR = 70;
+export const UP_AT_NIGHT_FLOOR = 70;
 const BED_EXIT_LABEL = 'Up at night · bed-exit alert (care plan)';
-const UNSTEADY_UP_FALL = 85;
+export const UNSTEADY_UP_FALL = 85;
 const UNSTEADY_UP_LABEL = 'Up at night, very unsteady';
 
 /** A rise above usual of about 27 points (on a low usual) reads as Medium. */
-const ALERT_GAIN = 1.5;
+export const ALERT_GAIN = 1.5;
 /** Never treat less than this as the headroom left: a high usual must not magnify small changes. */
-const MIN_HEADROOM = 50;
+export const MIN_HEADROOM = 50;
 /** Hours in a row out of bed at night: the second raises a prompt, the third a staff check. */
-const HOURS_UP_FLOORS: [number, number][] = [[3, 70], [2, 40]];
+export const HOURS_UP_FLOORS: [number, number][] = [[3, 70], [2, 40]];
 
 const clamp = (v: number) => Math.max(0, Math.min(100, v));
 

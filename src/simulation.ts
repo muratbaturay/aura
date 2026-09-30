@@ -88,7 +88,7 @@ export function simulate24h(
 type EpisodeKind = 'restless' | 'confused' | 'withdrawn' | 'unsteady';
 interface Episode { kind: EpisodeKind; start: number; hours: number }
 
-const EPISODE_CHANCE = 0.6;
+export const EPISODE_CHANCE = 0.6;
 
 function drawEpisode(rng: () => number): Episode | null {
   if (rng() >= EPISODE_CHANCE) return null;

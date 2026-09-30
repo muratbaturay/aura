@@ -4,6 +4,9 @@ import { isNightHour, DEFAULT_BASELINE } from './baseline';
 import type { Resident } from './residents';
 import type { Assessment } from './assessment';
 
+/** Overall urgency High this many hours in a row (including now) escalates to Level 4. */
+export const HIGH_STREAK_HOURS = 3;
+
 const DOMAIN_LABELS: Record<RiskDomain, string> = {
   fall: 'Fall risk',
   cognitive: 'Cognitive concern',
@@ -39,7 +42,7 @@ export function selectIntervention(
   } else if (highDomains.length >= 1 && vitals === 'amber') {
     level = 4;
     trigger = `Level 4: ${lower(highDomains[0])} is High and vitals are borderline (${vitalsText(state)}).`;
-  } else if (overallBand === 'High' && highStreak >= 2) {
+  } else if (overallBand === 'High' && highStreak >= HIGH_STREAK_HOURS - 1) {
     level = 4;
     trigger = 'Level 4: overall urgency has been High for 3+ hours in a row.';
   } else if (overallBand === 'High') {
