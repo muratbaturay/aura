@@ -665,3 +665,19 @@ body {
 input[type="range"]:focus-visible {
   outline: none;
 }
+
+/* ── Scenario controls ───────────────────────────────────── */
+.scenario-desc {
+  font-size: var(--fs-xs);
+  color: var(--c-text-dim);
+  line-height: var(--lh-relaxed);
+  margin: var(--sp-1) 0 0;
+}
+
+.scenario-desc:empty {
+  display: none;
+}
+
+select.text-input {
+  width: 100%;
+}

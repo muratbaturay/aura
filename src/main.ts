@@ -8,7 +8,8 @@ import { DEFAULT_BASELINE, defaultState, computeDeviations } from './baseline';
 import { computeRisks, urgencyBand, buildExplanation } from './risk';
 import { selectIntervention } from './intervention';
 import { simulate24h } from './simulation';
-import { createRng, randomSeed } from './rng';
+import { createRng, randomSeed, parseSeed } from './rng';
+import { SCENARIOS } from './scenarios';
 import { renderComparisonChart, renderTimelineChart } from './chart';
 import {
   loadLLMConfig, saveLLMConfig, isLLMAvailable,
@@ -25,6 +26,7 @@ let simSnapshots: SimulationSnapshot[] = [];
 let llmConfig: LLMConfig = loadLLMConfig();
 let lastLLMMessages: LLMGeneratedMessages | null = null;
 let simRunning = false;
+let runId = 0; // bumped by each run and by Reset; a playback loop stops when its id is stale
 
 // Cached outputs for LLM panel re-renders without full update()
 let lastIntervention: InterventionOutput | null = null;
@@ -83,7 +85,7 @@ wearToggle.checked = state.useWearables;
 wearToggle.addEventListener('change', () => {
   state.useWearables = wearToggle.checked;
   highStreak = 0;
-  document.getElementById('vitalsSection')!.classList.toggle('hidden', !state.useWearables);
+  syncWearablesUI();
   update();
 });
 
@@ -91,6 +93,11 @@ wearToggle.addEventListener('change', () => {
 document.getElementById('btnSimulate')!.addEventListener('click', runSimulation);
 document.getElementById('btnReset')!.addEventListener('click', resetAll);
 document.getElementById('btnRandomize')!.addEventListener('click', randomize);
+
+// Scenario + seed controls
+const scenarioSelect = document.getElementById('scenarioSelect') as HTMLSelectElement;
+const seedInput = document.getElementById('seedInput') as HTMLInputElement;
+setupScenarioUI();
 
 // ── LLM Config UI Binding ───────────────────────────────────
 setupLLMConfigUI();
@@ -487,29 +494,56 @@ function renderEventFeed() {
 }
 
 // ── Simulation ──────────────────────────────────────────────
+function setupScenarioUI() {
+  scenarioSelect.innerHTML = '<option value="">Random day</option>' +
+    SCENARIOS.map(sc => `<option value="${sc.id}">${escapeHtml(sc.name)}</option>`).join('');
+  const describe = () => {
+    const scenario = SCENARIOS.find(sc => sc.id === scenarioSelect.value);
+    document.getElementById('scenarioDesc')!.textContent =
+      scenario?.description ?? 'Random drift from the current sliders.';
+    seedInput.value = scenario ? String(scenario.seed) : '';
+    document.getElementById('seedNote')!.textContent = '';
+  };
+  scenarioSelect.addEventListener('change', describe);
+  describe();
+}
+
+/** Lock or unlock the controls a run would overwrite, and update the status chip. */
+function setRunning(on: boolean, chipLabel: string) {
+  simRunning = on;
+  document.querySelectorAll<HTMLInputElement>('.controls-panel .slider').forEach(el => { el.disabled = on; });
+  for (const id of ['wearToggle', 'scenarioSelect', 'seedInput', 'btnRandomize', 'btnSimulate']) {
+    (document.getElementById(id) as HTMLInputElement | HTMLButtonElement).disabled = on;
+  }
+  document.getElementById('btnSimulate')!.textContent = on ? 'Simulating\u2026' : 'Simulate 24h';
+  const simChip = document.getElementById('simStatusChip')!;
+  simChip.textContent = on ? `Running \u00b7 ${chipLabel}` : chipLabel;
+  simChip.className = on ? 'status-chip active' : 'status-chip';
+}
+
+function syncWearablesUI() {
+  wearToggle.checked = state.useWearables;
+  document.getElementById('vitalsSection')!.classList.toggle('hidden', !state.useWearables);
+}
+
 async function runSimulation() {
-  const btn = document.getElementById('btnSimulate') as HTMLButtonElement;
-  btn.disabled = true;
-  btn.textContent = 'Simulating\u2026';
+  const myRun = ++runId;
+  const scenario = SCENARIOS.find(sc => sc.id === scenarioSelect.value);
+  const seed = parseSeed(seedInput.value) ?? randomSeed();
   timelineEvents = [];
   simSnapshots = [];
   highStreak = 0;
 
-  // Update status chip
-  const simChip = document.getElementById('simStatusChip')!;
-  simChip.textContent = 'Running';
-  simChip.className = 'status-chip active';
-
   // Lock out LLM for the entire simulation run
-  simRunning = true;
+  setRunning(true, scenario?.name ?? 'Random day');
   stopLLMWork();
   lastLLMMessages = null;
   prevSignature = '';
 
-  const snapshots = simulate24h(DEFAULT_BASELINE, state, { rng: createRng(randomSeed()) });
+  const snapshots = simulate24h(DEFAULT_BASELINE, state, { rng: createRng(seed), scenario });
 
-  for (let i = 0; i < snapshots.length; i++) {
-    const snap = snapshots[i];
+  for (const snap of snapshots) {
+    if (myRun !== runId) return; // Reset or a newer run took over
     simSnapshots.push(snap);
 
     Object.assign(state, snap.state);
@@ -517,36 +551,32 @@ async function runSimulation() {
     highStreak = snap.highStreak; // same streak the simulation used, so the level matches
 
     syncSlidersFromState();
+    syncWearablesUI();
     update(); // LLM gated out by simRunning flag
 
-    await sleep(120); // yield to browser for repaint
+    await sleep(scenario ? 500 : 120); // stories play slowly enough to narrate
   }
+  if (myRun !== runId) return;
 
   // Simulation complete — unlock LLM, do one final update
-  simRunning = false;
-  btn.disabled = false;
-  btn.textContent = 'Simulate 24h';
-  simChip.textContent = 'Complete';
-  simChip.className = 'status-chip';
+  document.getElementById('seedNote')!.textContent = `Ran seed ${seed}`;
+  setRunning(false, 'Complete');
   update(); // This will trigger maybeRequestLLM if signature changed
 }
 
 function resetAll() {
+  runId++; // stops any playback in progress
   state = defaultState();
   highStreak = 0;
   timelineEvents = [];
   simSnapshots = [];
   lastLLMMessages = null;
   prevSignature = '';
-  simRunning = false;
   stopLLMWork();
 
-  const simChip = document.getElementById('simStatusChip')!;
-  simChip.textContent = 'Idle';
-  simChip.className = 'status-chip';
+  setRunning(false, 'Idle');
   syncSlidersFromState();
-  document.getElementById('vitalsSection')!.classList.toggle('hidden', !state.useWearables);
-  (document.getElementById('wearToggle') as HTMLInputElement).checked = state.useWearables;
+  syncWearablesUI();
   update();
 }
 
@@ -721,6 +751,21 @@ function buildHTML(): string {
     <div class="control-group">
       <label>Staff Load <span id="staffLoadVal" class="slider-val"></span></label>
       <input type="range" id="staffLoadSlider" class="slider" />
+    </div>
+
+    <div class="section-header">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+      Scenario
+    </div>
+    <div class="control-group">
+      <label for="scenarioSelect">Story</label>
+      <select id="scenarioSelect" class="text-input"></select>
+      <p id="scenarioDesc" class="scenario-desc"></p>
+    </div>
+    <div class="control-group">
+      <label for="seedInput">Seed</label>
+      <input type="text" inputmode="numeric" id="seedInput" class="text-input" placeholder="new each run" autocomplete="off" />
+      <p id="seedNote" class="scenario-desc"></p>
     </div>
 
     <div class="btn-row">

@@ -11,11 +11,12 @@ A browser-based simulator that models an ambient AI system for assisted-living e
   1. Ambient Cue (lighting, music) — overall Low
   2. Gentle Prompt (resident-facing message) — overall Medium
   3. Staff Soft Alert — overall High, or amber vitals (SpO2 < 92%, HR > 110)
-  4. Escalate (urgent staff notification) — red vitals (SpO2 < 90%, HR > 120), two High domains, a High domain with amber vitals, or 3+ High hours during a simulation
+  4. Escalate (urgent staff notification) — red vitals (SpO2 < 90%, HR > 120), two High domains, a High domain with amber vitals, or overall High for 3+ hours in a row during a simulation (ends as soon as urgency drops out of High)
 
   Staff load never changes the level; when it is high it adds a prioritization note to the staff message.
 - **Explainability Panel** — States the ladder rule that set the level, then attributes the Overall score to the signals behind it (exact additive contributions from the scoring model, in points that sum to the score), with a natural-language summary built from the same numbers.
-- **24-Hour Simulation** — Animated walk-through of a full day with random drift, night patterns, and event generation.
+- **24-Hour Simulation** — Animated walk-through of a full day with random drift, night patterns, and event generation. Every run is seeded: the seed is shown after a random day, and typing it back in replays that day exactly.
+- **Scenario Presets** — Scripted one-day stories for demos, each walking the intervention ladder along a different path: *Sundowning evening* (cognitive → Level 4 at night), *UTI onset* (confusion + rising heart rate → Level 4, then recovery), *Withdrawn day* (loneliness, gentle prompts only) and *Restless night* (fall risk → Level 4 in the small hours). Each has a fixed seed so the demo plays the same way every time; stories play at 0.5 s per hour.
 - **Optional LLM Messaging** — Toggle on adaptive, AI-generated resident and staff messages via any OpenAI-compatible API (OpenAI, Ollama, LM Studio). Falls back to deterministic templates when disabled.
 - **SVG Charts** — Baseline vs Current bar chart and 24h risk trend lines with night-band shading.
 - **Event Timeline** — Chronological feed of detected events with severity markers.
@@ -64,7 +65,9 @@ src/
 ├── baseline.ts             # Default baseline, deviation computation
 ├── risk.ts                 # Risk scoring, urgency bands, explanation builder
 ├── intervention.ts         # Intervention level selection and template messages
-├── simulation.ts           # 24-hour simulation with random-walk drift
+├── simulation.ts           # Seeded 24-hour simulation: random-walk day or keyframed scenario
+├── scenarios.ts            # Scenario presets (keyframed storylines) and interpolation
+├── rng.ts                  # Seeded PRNG and seed parsing
 ├── escalation.test.ts      # Vitest coverage for scoring and the intervention ladder
 ├── chart.ts                # SVG chart renderers (comparison + timeline)
 ├── engine/
