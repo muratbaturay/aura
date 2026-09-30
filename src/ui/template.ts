@@ -50,6 +50,7 @@ export function buildHTML(): string {
       <span id="clockTime" class="clock-time mono"></span>
       <span id="clockPart" class="clock-part"></span>
     </div>
+    <button id="btnHow" class="btn btn-ghost btn-pill" aria-haspopup="dialog" aria-controls="howPanel" aria-expanded="false">${icons.info}<span>How it works</span></button>
     <button id="btnStudio" class="btn btn-primary btn-pill" aria-haspopup="dialog" aria-controls="studio" aria-expanded="false">${icons.sliders}<span>Scenario studio</span></button>
   </div>
 </header>
@@ -132,6 +133,18 @@ export function buildHTML(): string {
   <p>(c)2026 - Murat Baturay / AURA-Senior &mdash; Prototype for demonstration only. Not a medical device.</p>
 </footer>
 </div>
+
+<div id="howBackdrop" class="studio-backdrop" hidden></div>
+<aside id="howPanel" class="studio how-panel" role="dialog" aria-modal="true" aria-labelledby="howTitle" hidden>
+  <header class="studio-head">
+    <div>
+      <h2 id="howTitle" class="studio-title">How AURA works</h2>
+      <p class="studio-intro">The model, its numbers, and its limits.</p>
+    </div>
+    <button id="btnHowClose" class="icon-btn" aria-label="Close how it works">${icons.close}</button>
+  </header>
+  <div id="howContent" class="how-content"></div>
+</aside>
 
 <div id="studioBackdrop" class="studio-backdrop" hidden></div>
 <aside id="studio" class="studio" role="dialog" aria-modal="true" aria-labelledby="studioTitle" hidden>

@@ -2,6 +2,8 @@
 
 A browser-based simulator that models an ambient AI system for assisted-living environments. It demonstrates how continuous, non-intrusive sensor signals can be fused into real-time risk scores, escalating interventions, and natural-language care messages — all without requiring the resident to wear or operate any device.
 
+> **How this works, and its limits:** [docs/how-it-works.md](docs/how-it-works.md). It covers the pipeline, the real sensors each input stands for, every formula and threshold, what is illustrative versus structural, and what it would take to make this real. The same page is in the app under **How it works**.
+
 ## Features
 
 - **Residents** — Four residents with their own normals: *Eleanor, 82* (independent, steady), *Walter, 88* (frail, history of falls, often up at night; bed-exit alert in his care plan), *Margaret, 79* (early dementia, more restless in the evening; bed-exit alert) and *Joseph, 85* (recently widowed and withdrawn; COPD, wears a monitor). Switch from the header; each story belongs to one of them.
@@ -72,6 +74,7 @@ src/
 ├── baseline.ts             # Default baseline, deviation computation
 ├── residents.ts            # The four residents: usual levels, baselines, care-plan flags
 ├── assessment.ts           # Change-from-normal alert scores, red flags, explanation
+├── howItWorks.ts           # 'How it works' content built from the model's own constants
 ├── risk.ts                 # Risk scoring, urgency bands, explanation builder
 ├── intervention.ts         # Intervention level selection and template messages
 ├── simulation.ts           # Seeded 24-hour simulation: random-walk day or keyframed scenario

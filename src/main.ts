@@ -21,6 +21,7 @@ import { setupRing, updateRing } from './ui/ring';
 import { ackReducer, formatElapsed, type AckState, type AckEvent } from './ack';
 import { buildHTML } from './ui/template';
 import { createDrawer } from './ui/drawer';
+import { renderHowItWorks } from './ui/howItWorks';
 import { icons } from './ui/icons';
 import { renderComparisonChart, renderTimelineChart } from './chart';
 import {
@@ -125,6 +126,15 @@ const studio = createDrawer(
 );
 document.getElementById('btnStudio')!.addEventListener('click', () => studio.open());
 document.getElementById('btnStudioClose')!.addEventListener('click', () => studio.close());
+document.getElementById('howContent')!.innerHTML = renderHowItWorks();
+const howPanel = createDrawer(
+  document.getElementById('howPanel')!,
+  document.getElementById('howBackdrop')!,
+  document.getElementById('btnHow')!,
+  document.getElementById('page')!,
+);
+document.getElementById('btnHow')!.addEventListener('click', () => howPanel.open());
+document.getElementById('btnHowClose')!.addEventListener('click', () => howPanel.close());
 setupResidentMenu();
 setupScenarioUI();
 setupPlaybackBar();

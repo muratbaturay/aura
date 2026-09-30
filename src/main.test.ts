@@ -207,3 +207,16 @@ describe('final review fixes: page', () => {
     expect(el('fallUsual').textContent).toMatch(/usual when up/);
   });
 });
+
+describe('how it works panel', () => {
+  it('opens from the header with the live model and closes on Esc', async () => {
+    await loadApp();
+    el('btnHow').click();
+    expect(el('howPanel').hidden).toBe(false);
+    expect(el('howPanel').textContent).toContain('max(50, 100 − usual)');
+    expect(el('howPanel').textContent).toContain('SpO2 amber < 88, red < 85');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(el('howPanel').hidden).toBe(true);
+    expect(document.activeElement).toBe(el('btnHow'));
+  });
+});

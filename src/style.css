@@ -596,6 +596,90 @@ body {
   min-height: 44px;
 }
 
+/* ── How it works panel ──────────────────────────────────── */
+
+.studio.how-panel {
+  width: min(720px, 100vw);
+}
+
+.how-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-6);
+  font-size: var(--fs-base);
+  line-height: var(--lh-relaxed);
+  color: var(--c-text-2);
+}
+
+.how-content h3 {
+  margin: 0 0 var(--sp-2);
+  font-family: var(--ff-display);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  color: var(--c-text);
+}
+
+.how-content p {
+  margin: 0 0 var(--sp-2);
+}
+
+.how-lead {
+  font-size: var(--fs-lg);
+  color: var(--c-text);
+}
+
+.how-note {
+  font-size: var(--fs-sm);
+  color: var(--c-text-dim);
+}
+
+.how-steps,
+.how-list {
+  margin: 0;
+  padding-left: 1.2em;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.how-formulas {
+  margin: 0 0 var(--sp-3);
+  padding: var(--sp-4);
+  border-radius: var(--r-lg);
+  background: var(--c-bg-inset);
+  color: var(--c-text);
+  font-family: var(--ff-mono);
+  font-size: 12px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.how-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+
+.how-table th,
+.how-table td {
+  padding: 8px 10px 8px 0;
+  border-bottom: 1px solid var(--c-divider);
+  text-align: left;
+  vertical-align: top;
+}
+
+.how-table th {
+  font-size: 12px;
+  font-weight: var(--fw-semibold);
+  color: var(--c-text-dim);
+}
+
+.how-content a {
+  color: var(--c-text);
+  text-underline-offset: 3px;
+}
+
 /* ── Theme switch ────────────────────────────────────────── */
 
 .theme-switch {
