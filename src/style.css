@@ -200,7 +200,7 @@ body {
   display: grid;
   grid-template-columns: 360px minmax(0, 1fr) 400px;
   gap: var(--sp-6);
-  align-items: start;
+  align-items: stretch;   /* the three columns share one height */
 }
 
 .care-col {
@@ -208,6 +208,11 @@ body {
   flex-direction: column;
   gap: var(--sp-6);
   min-width: 0;
+}
+
+/* The last card in each column fills it, so the top panels end on one line */
+.care-col > .card:last-child {
+  flex: 1;
 }
 
 @media (max-width: 700px) {
