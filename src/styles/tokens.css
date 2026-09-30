@@ -1,60 +1,71 @@
 /* ═══════════════════════════════════════════════════════════
-   AURA Design Tokens — Clinical Serenity
+   AURA Design Tokens — Dusk & Dawn
+   Day under :root; night overrides under [data-theme="night"],
+   switched by the simulated clock (22:00–06:00).
    ═══════════════════════════════════════════════════════════ */
 
 :root {
-  /* ── Palette ──────────────────────────────────────────── */
-  --c-bg:           #F7F9FB;
-  --c-bg-raised:    #FFFFFF;
-  --c-bg-inset:     #F1F4F8;
-  --c-bg-overlay:   rgba(15, 23, 42, 0.04);
+  /* ── Palette: day ─────────────────────────────────────── */
+  --c-bg:           #F4EFE6;   /* paper */
+  --c-bg-raised:    #FBF8F2;   /* card */
+  --c-bg-inset:     #EFE8DC;
+  --c-bg-overlay:   rgba(31, 28, 24, 0.04);
 
-  --c-text:         #0F172A;
-  --c-text-2:       #334155;
-  --c-text-muted:   #64748B;
-  --c-text-dim:     #94A3B8;
-  --c-text-inv:     #FFFFFF;
+  --c-text:         #1F1C18;   /* ink */
+  --c-text-2:       #3E3830;
+  --c-text-muted:   #5C554B;
+  --c-text-dim:     #6E6558;
+  --c-text-inv:     #FBF8F2;
 
-  --c-border:       #E2E8F0;
-  --c-border-focus: #0F766E;
-  --c-divider:      #EEF2F6;
+  --c-border:       #E4DCCF;
+  --c-border-focus: #1F1C18;
+  --c-divider:      #ECE5D9;
 
-  --c-teal:         #0F766E;
-  --c-teal-light:   #CCFBF1;
-  --c-teal-bg:      #F0FDFA;
-  --c-teal-hover:   #0D6B63;
+  /* Primary accent (kept under its old name so existing components follow) */
+  --c-teal:         #1F1C18;
+  --c-teal-light:   #E4DCCF;
+  --c-teal-bg:      #F4EFE6;
+  --c-teal-hover:   #3E3830;
 
-  --c-blue:         #2563EB;
-  --c-blue-light:   #DBEAFE;
-  --c-blue-bg:      #EFF6FF;
+  --c-blue:         #3F6B7E;
+  --c-blue-light:   #D6E4EA;
+  --c-blue-bg:      #EEF3F5;
 
-  --c-green:        #16A34A;
-  --c-green-light:  #BBF7D0;
-  --c-green-bg:     #F0FDF4;
+  --c-green:        #4A7556;
+  --c-green-light:  #D5E5D6;
+  --c-green-bg:     #EFF5EF;
 
-  --c-amber:        #D97706;
-  --c-amber-light:  #FDE68A;
-  --c-amber-bg:     #FFFBEB;
+  --c-amber:        #95600F;
+  --c-amber-light:  #F3DFB5;
+  --c-amber-bg:     #FBF3E2;
 
-  --c-red:          #DC2626;
-  --c-red-light:    #FECACA;
-  --c-red-bg:       #FEF2F2;
+  --c-red:          #9E2B25;
+  --c-red-light:    #F1D0CB;
+  --c-red-bg:       #FBEDEA;
 
   /* Intervention levels: each step darker than the last, so they read without hue */
   --c-level-1:      #C9DCE3;   /* Ambient cue */
   --c-level-2:      #E8B96A;   /* Gentle prompt */
   --c-level-3:      #D9763F;   /* Staff soft alert */
   --c-level-4:      #9E2B25;   /* Escalate */
+  --c-high-text:    #A4512A;   /* "High" labels on light grounds */
 
-  /* Explanation score bar: largest contributor darkest */
-  --c-shade-1:      #334155;
-  --c-shade-2:      #64748B;
-  --c-shade-3:      #94A3B8;
-  --c-shade-4:      #B8C2CF;
-  --c-shade-5:      #D5DCE5;
+  /* Explanation score bar: largest contributor strongest */
+  --c-shade-1:      #3B3630;
+  --c-shade-2:      #8A8073;
+  --c-shade-3:      #B5AB9C;
+  --c-shade-4:      #CFC6B8;
+  --c-shade-5:      #E2DACD;
+
+  /* 24-hour ring */
+  --ring-future:    #E9E2D6;
+  --ring-gap:       var(--c-bg-raised);
+  --ring-night:     #DCD2C1;
 
   /* ── Typography ───────────────────────────────────────── */
-  --ff-base:        'DM Sans', system-ui, -apple-system, sans-serif;
+  --ff-base:        'Instrument Sans', system-ui, -apple-system, sans-serif;
+  --ff-display:     'Fraunces', Georgia, serif;
+  --ff-mono:        'IBM Plex Mono', ui-monospace, monospace;
   --fw-regular:     400;
   --fw-medium:      500;
   --fw-semibold:    600;
@@ -86,18 +97,80 @@
   --r-md:   10px;
   --r-lg:   14px;
   --r-xl:   18px;
+  --r-card: 28px;
   --r-full: 9999px;
 
   /* ── Shadows ──────────────────────────────────────────── */
-  --shadow-xs:    0 1px 2px rgba(15,23,42,0.04);
-  --shadow-sm:    0 1px 3px rgba(15,23,42,0.06), 0 1px 2px rgba(15,23,42,0.03);
-  --shadow-md:    0 4px 12px rgba(15,23,42,0.07), 0 1px 3px rgba(15,23,42,0.04);
-  --shadow-lg:    0 8px 24px rgba(15,23,42,0.08), 0 2px 6px rgba(15,23,42,0.04);
-  --shadow-focus: 0 0 0 3px rgba(15,118,110,0.18);
+  --shadow-xs:    0 1px 2px rgba(31,28,24,0.04);
+  --shadow-sm:    0 1px 3px rgba(31,28,24,0.06), 0 1px 2px rgba(31,28,24,0.03);
+  --shadow-md:    0 4px 12px rgba(31,28,24,0.07), 0 1px 3px rgba(31,28,24,0.04);
+  --shadow-lg:    0 8px 24px rgba(31,28,24,0.10), 0 2px 6px rgba(31,28,24,0.05);
+  --shadow-focus: 0 0 0 3px rgba(31,28,24,0.18);
 
   /* ── Transitions ──────────────────────────────────────── */
   --ease-out:     cubic-bezier(0.16, 1, 0.3, 1);
   --dur-fast:     150ms;
   --dur-normal:   200ms;
   --dur-slow:     300ms;
+  --dur-theme:    400ms;
+}
+
+/* ── Palette: night (warm, no blue light) ───────────────── */
+:root[data-theme="night"] {
+  --c-bg:           #14110D;   /* umber */
+  --c-bg-raised:    #1D1914;
+  --c-bg-inset:     #25201A;
+  --c-bg-overlay:   rgba(239, 229, 211, 0.04);
+
+  --c-text:         #EFE5D3;   /* cream */
+  --c-text-2:       #D8CCB8;
+  --c-text-muted:   #BFB29D;
+  --c-text-dim:     #9C8F7B;
+  --c-text-inv:     #14110D;
+
+  --c-border:       #342C23;
+  --c-border-focus: #EFE5D3;
+  --c-divider:      #2C261F;
+
+  --c-teal:         #EFE5D3;
+  --c-teal-light:   #342C23;
+  --c-teal-bg:      #25201A;
+  --c-teal-hover:   #D8CCB8;
+
+  --c-blue:         #8FB3C2;
+  --c-blue-light:   #26343A;
+  --c-blue-bg:      #1B2327;
+
+  --c-green:        #8DB596;
+  --c-green-light:  #243128;
+  --c-green-bg:     #19211B;
+
+  --c-amber:        #D2A24F;
+  --c-amber-light:  #3A2E18;
+  --c-amber-bg:     #231C11;
+
+  --c-red:          #EE8A79;
+  --c-red-light:    #3E1D17;
+  --c-red-bg:       #26140F;
+
+  --c-level-1:      #7F97A1;
+  --c-level-2:      #D2A24F;
+  --c-level-3:      #DB7B45;
+  --c-level-4:      #E5553F;
+  --c-high-text:    #EE8A79;
+
+  --c-shade-1:      #EFE5D3;
+  --c-shade-2:      #BFB29D;
+  --c-shade-3:      #8E826F;
+  --c-shade-4:      #615747;
+  --c-shade-5:      #463E33;
+
+  --ring-future:    #2C261F;
+  --ring-night:     #4A3F31;
+
+  --shadow-xs:    0 1px 2px rgba(0,0,0,0.3);
+  --shadow-sm:    0 1px 3px rgba(0,0,0,0.35);
+  --shadow-md:    0 4px 12px rgba(0,0,0,0.4);
+  --shadow-lg:    0 8px 24px rgba(0,0,0,0.5);
+  --shadow-focus: 0 0 0 3px rgba(239,229,211,0.25);
 }

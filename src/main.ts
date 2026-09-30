@@ -11,6 +11,7 @@ import { simulate24h, startStateFor } from './simulation';
 import { createRng, randomSeed, parseSeed } from './rng';
 import { SCENARIOS } from './scenarios';
 import { haloView, scoreBarSegments } from './view';
+import { themeFor } from './theme';
 import { renderComparisonChart, renderTimelineChart } from './chart';
 import {
   loadLLMConfig, saveLLMConfig, isLLMAvailable,
@@ -334,6 +335,7 @@ function update() {
   lastExplanation = explanation;
   lastRisks = risks;
 
+  document.documentElement.dataset.theme = themeFor(state.timeOfDay, DEFAULT_BASELINE);
   renderStatus(risks, intervention);
 
   // Determine message source and content

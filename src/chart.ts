@@ -1,10 +1,14 @@
 import type { ResidentBaseline, CurrentState, SimulationSnapshot } from './types';
 
 const COLORS = {
-  baseline: '#64748b',
-  current: '#0F766E',
-  baselineFill: 'rgba(100,116,139,0.15)',
-  currentFill: 'rgba(15,118,110,0.12)',
+  baseline: 'var(--c-text-muted)',
+  current: 'var(--c-text)',
+  baselineFill: 'color-mix(in srgb, var(--c-text-muted) 15%, transparent)',
+  currentFill: 'color-mix(in srgb, var(--c-text) 12%, transparent)',
+  grid: 'var(--c-divider)',
+  axis: 'var(--c-text-dim)',
+  label: 'var(--c-text-muted)',
+  nightBand: 'var(--c-bg-overlay)',
 };
 
 export function renderComparisonChart(
@@ -31,8 +35,8 @@ export function renderComparisonChart(
   // Grid lines
   for (let v = 0; v <= 100; v += 25) {
     const y = pad.top + plotH - (v / 100) * plotH;
-    svg += `<line x1="${pad.left}" y1="${y}" x2="${w - pad.right}" y2="${y}" stroke="#e2e8f0" stroke-width="0.5"/>`;
-    svg += `<text x="${pad.left - 6}" y="${y + 3}" text-anchor="end" font-size="9" fill="#94a3b8">${v}</text>`;
+    svg += `<line x1="${pad.left}" y1="${y}" x2="${w - pad.right}" y2="${y}" stroke="${COLORS.grid}" stroke-width="0.5"/>`;
+    svg += `<text x="${pad.left - 6}" y="${y + 3}" text-anchor="end" font-size="9" fill="${COLORS.axis}">${v}</text>`;
   }
 
   metrics.forEach((m, i) => {
@@ -52,7 +56,7 @@ export function renderComparisonChart(
     svg += `<text x="${cx2 + barW / 2}" y="${pad.top + plotH - cH - 4}" text-anchor="middle" font-size="8" fill="${COLORS.current}">${Math.round(m.current)}</text>`;
 
     // Label
-    svg += `<text x="${cx}" y="${h - pad.bottom + 16}" text-anchor="middle" font-size="9" fill="#64748b">${m.label}</text>`;
+    svg += `<text x="${cx}" y="${h - pad.bottom + 16}" text-anchor="middle" font-size="9" fill="${COLORS.label}">${m.label}</text>`;
   });
 
   // Legend
@@ -70,7 +74,7 @@ export function renderTimelineChart(
   snapshots: SimulationSnapshot[]
 ): void {
   if (snapshots.length === 0) {
-    container.innerHTML = '<p style="color:#94a3b8;font-size:13px;">Run a 24h simulation to see trends.</p>';
+    container.innerHTML = '<p style="color:var(--c-text-dim);font-size:13px;">Run a 24h simulation to see trends.</p>';
     return;
   }
 
@@ -80,9 +84,9 @@ export function renderTimelineChart(
   const plotH = h - pad.top - pad.bottom;
 
   const series: { label: string; color: string; data: number[] }[] = [
-    { label: 'Fall', color: '#ef4444', data: snapshots.map(s => s.risks.fall) },
-    { label: 'Cognitive', color: '#f59e0b', data: snapshots.map(s => s.risks.cognitive) },
-    { label: 'Loneliness', color: '#3b82f6', data: snapshots.map(s => s.risks.loneliness) },
+    { label: 'Fall', color: 'var(--c-level-4)', data: snapshots.map(s => s.risks.fall) },
+    { label: 'Cognitive', color: 'var(--c-level-2)', data: snapshots.map(s => s.risks.cognitive) },
+    { label: 'Loneliness', color: 'var(--c-level-1)', data: snapshots.map(s => s.risks.loneliness) },
   ];
 
   let svg = `<svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">`;
@@ -92,20 +96,20 @@ export function renderTimelineChart(
   for (const [s, e] of nightRanges) {
     const x1 = pad.left + (s / 24) * plotW;
     const x2 = pad.left + (e / 24) * plotW;
-    svg += `<rect x="${x1}" y="${pad.top}" width="${x2 - x1}" height="${plotH}" fill="rgba(15,118,110,0.05)"/>`;
+    svg += `<rect x="${x1}" y="${pad.top}" width="${x2 - x1}" height="${plotH}" fill="${COLORS.nightBand}"/>`;
   }
 
   // Grid
   for (let v = 0; v <= 100; v += 25) {
     const y = pad.top + plotH - (v / 100) * plotH;
-    svg += `<line x1="${pad.left}" y1="${y}" x2="${w - pad.right}" y2="${y}" stroke="#e2e8f0" stroke-width="0.5"/>`;
-    svg += `<text x="${pad.left - 5}" y="${y + 3}" text-anchor="end" font-size="8" fill="#94a3b8">${v}</text>`;
+    svg += `<line x1="${pad.left}" y1="${y}" x2="${w - pad.right}" y2="${y}" stroke="${COLORS.grid}" stroke-width="0.5"/>`;
+    svg += `<text x="${pad.left - 5}" y="${y + 3}" text-anchor="end" font-size="8" fill="${COLORS.axis}">${v}</text>`;
   }
 
   // X axis labels
   for (let hh = 0; hh <= 24; hh += 4) {
     const x = pad.left + (hh / 24) * plotW;
-    svg += `<text x="${x}" y="${h - pad.bottom + 14}" text-anchor="middle" font-size="8" fill="#94a3b8">${hh}h</text>`;
+    svg += `<text x="${x}" y="${h - pad.bottom + 14}" text-anchor="middle" font-size="8" fill="${COLORS.axis}">${hh}h</text>`;
   }
 
   // Lines

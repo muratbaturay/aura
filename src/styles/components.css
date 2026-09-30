@@ -183,7 +183,7 @@
 }
 
 .text-input[type="password"] {
-  font-family: ui-monospace, SFMono-Regular, 'Cascadia Code', monospace;
+  font-family: var(--ff-mono);
   letter-spacing: 0.08em;
 }
 
@@ -209,7 +209,7 @@
   border-radius: 50%;
   background: var(--c-teal);
   border: 2.5px solid white;
-  box-shadow: 0 1px 4px rgba(15,118,110,0.35);
+  box-shadow: var(--shadow-sm);
   cursor: pointer;
   transition: transform var(--dur-fast) var(--ease-out),
               box-shadow var(--dur-fast);
@@ -217,11 +217,11 @@
 
 .slider::-webkit-slider-thumb:hover {
   transform: scale(1.12);
-  box-shadow: 0 2px 8px rgba(15,118,110,0.4);
+  box-shadow: var(--shadow-md);
 }
 
 .slider:focus-visible::-webkit-slider-thumb {
-  box-shadow: var(--shadow-focus), 0 1px 4px rgba(15,118,110,0.35);
+  box-shadow: var(--shadow-focus), var(--shadow-sm);
 }
 
 .slider::-moz-range-thumb {
@@ -230,7 +230,7 @@
   border-radius: 50%;
   background: var(--c-teal);
   border: 2.5px solid white;
-  box-shadow: 0 1px 4px rgba(15,118,110,0.35);
+  box-shadow: var(--shadow-sm);
   cursor: pointer;
 }
 
@@ -408,7 +408,7 @@
   top: -3px;
   width: 1px;
   height: 14px;
-  background: #CBD5E1;
+  background: var(--c-border);
 }
 
 /* ── Status Chip ─────────────────────────────────────────── */
@@ -463,7 +463,7 @@
 }
 
 .llm-badge {
-  background: linear-gradient(135deg, var(--c-teal), #0EA5E9);
+  background: var(--c-teal);
   color: white;
 }
 

@@ -18,11 +18,26 @@ html {
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  color-scheme: light;
+  transition: background-color var(--dur-theme) ease, color var(--dur-theme) ease;
+}
+
+html[data-theme="night"] {
+  color-scheme: dark;
 }
 
 body {
   margin: 0;
   min-height: 100vh;
+}
+
+/* Cards and panels ease between day and night with the page */
+.card, .controls-panel, .app-header {
+  transition: background-color var(--dur-theme) ease, border-color var(--dur-theme) ease, color var(--dur-theme) ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html, .card, .controls-panel, .app-header { transition: none; }
 }
 
 #app {
@@ -39,7 +54,7 @@ body {
   top: 0;
   z-index: 50;
   backdrop-filter: blur(12px);
-  background: rgba(255,255,255,0.92);
+  background: color-mix(in srgb, var(--c-bg) 92%, transparent);
 }
 
 .header-inner {
@@ -62,7 +77,7 @@ body {
 .logo-mark {
   width: 32px;
   height: 32px;
-  background: linear-gradient(135deg, var(--c-teal), #0EA5E9);
+  background: var(--c-teal);
   border-radius: var(--r-md);
   display: flex;
   align-items: center;
@@ -106,7 +121,7 @@ body {
   letter-spacing: 0.04em;
   padding: 3px 10px;
   border-radius: var(--r-full);
-  background: linear-gradient(135deg, var(--c-teal), #0EA5E9);
+  background: var(--c-teal);
   color: white;
   display: inline-flex;
   align-items: center;
@@ -261,7 +276,7 @@ body {
 
 .level-1 .level-badge { background: var(--c-green); }
 .level-2 .level-badge { background: var(--c-amber); }
-.level-3 .level-badge { background: #EA580C; }
+.level-3 .level-badge { background: var(--c-level-3); }
 .level-4 .level-badge { background: var(--c-red); }
 
 .level-label {
@@ -348,7 +363,7 @@ body {
   top: 0;
   bottom: 0;
   width: 1px;
-  background: rgba(255, 255, 255, 0.7);
+  background: color-mix(in srgb, var(--c-bg-raised) 70%, transparent);
 }
 
 .score-mark.high {
@@ -375,7 +390,7 @@ body {
 .score-scale .scale-end   { right: 0; transform: none; }
 
 .score-scale .scale-high {
-  color: #A4512A;
+  color: var(--c-high-text);
   font-weight: var(--fw-semibold);
 }
 
