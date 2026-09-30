@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
+import { ELEANOR, residentById } from './residents';
 import type { TimelineEvent } from './types';
-import { DEFAULT_BASELINE, defaultState } from './baseline';
+import { defaultState } from './baseline';
 import { createRng } from './rng';
 import { simulate24h } from './simulation';
 import { SCENARIOS } from './scenarios';
@@ -36,12 +37,12 @@ describe('eventLanes', () => {
     const labels = new Set<string>();
     for (let seed = 1; seed <= 300; seed++) {
       for (const useWearables of [false, true]) {
-        const snaps = simulate24h(DEFAULT_BASELINE, { ...defaultState(), useWearables }, { rng: createRng(seed) });
+        const snaps = simulate24h(ELEANOR, { ...defaultState(), useWearables }, { rng: createRng(seed) });
         snaps.forEach(s => s.events.forEach(e => labels.add(e.label)));
       }
     }
     for (const sc of SCENARIOS) {
-      simulate24h(DEFAULT_BASELINE, defaultState(), { rng: createRng(sc.seed), scenario: sc })
+      simulate24h(residentById(sc.residentId), defaultState(), { rng: createRng(sc.seed), scenario: sc })
         .forEach(s => s.events.forEach(e => labels.add(e.label)));
     }
     const covered = new Set<string>(LANES.map(l => l.match));

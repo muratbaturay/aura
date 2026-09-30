@@ -50,7 +50,33 @@ describe('assess: change from her own normal', () => {
     const a = at(walter, 3, { restlessness: 85, mobility: 20 });
     expect(a.standing.fall).toBeGreaterThanOrEqual(85);
     expect(a.alert.overall).toBeGreaterThanOrEqual(70);
-    expect(a.explanation.factors.map(f => f.factor).join(' ')).toMatch(/up at night/i);
+  });
+});
+
+describe('assess: nights', () => {
+  it('treats Eleanor getting up at night as normal (a bed exit, not an alarm)', () => {
+    const s = { ...usualStateAt(eleanor, 3), restlessness: 75 };
+    expect(selectIntervention(s, assess(s, eleanor).alert, 0, eleanor).level).toBe(1);
+  });
+
+  it("raises a staff alert when Walter gets up at night (his care plan's bed-exit alert)", () => {
+    const s = { ...usualStateAt(walter, 3), restlessness: 75 };
+    const a = assess(s, walter);
+    expect(selectIntervention(s, a.alert, 0, walter).level).toBeGreaterThanOrEqual(3);
+    expect(a.explanation.factors[0].factor).toMatch(/bed-exit alert/i);
+  });
+
+  it('escalates anyone who is up at night and very unsteady', () => {
+    const s = { ...usualStateAt(eleanor, 3), restlessness: 85, mobility: 10 };
+    const a = assess(s, eleanor);
+    expect(a.standing.fall).toBeGreaterThanOrEqual(85);
+    expect(a.alert.overall).toBeGreaterThanOrEqual(70);
+  });
+});
+
+describe('assess: daytime sensitivity', () => {
+  it("notices a 30-point drop in Eleanor's steadiness", () => {
+    expect(at(eleanor, 14, { mobility: 40 }).alert.fall).toBeGreaterThanOrEqual(40);
   });
 });
 
@@ -80,7 +106,7 @@ describe('assess: explanation', () => {
 describe('messages', () => {
   it("uses the resident's own contact in a loneliness prompt", () => {
     // Withdrawal is Joseph's normal: it takes more isolation *and* less activity to alert
-    const patch = { socialIsolation: 95, mobility: 40, restlessness: 10 };
+    const patch = { socialIsolation: 85, mobility: 50, restlessness: 15 };
     const a = at(joseph, 14, patch);
     const out = selectIntervention({ ...usualStateAt(joseph, 14), ...patch }, a.alert, 0, joseph);
     expect(out.level).toBe(2);

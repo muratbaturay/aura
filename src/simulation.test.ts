@@ -1,17 +1,18 @@
 import { describe, it, expect } from 'vitest';
-import { DEFAULT_BASELINE, defaultState, computeDeviations } from './baseline';
-import { computeRisks } from './risk';
+import { ELEANOR, residentById, type Resident } from './residents';
+import { defaultState } from './baseline';
 import { selectIntervention } from './intervention';
+import { assess } from './assessment';
 import { createRng } from './rng';
 import { simulate24h, startStateFor } from './simulation';
 import { valueAt, SCENARIOS, type Scenario } from './scenarios';
 
 const TEST_SCENARIO: Scenario = {
-  id: 'test', name: 'Test', description: '', seed: 1, useWearables: true, chapters: [],
+  id: 'test', name: 'Test', description: '', seed: 1, useWearables: true, chapters: [], residentId: 'eleanor',
   keyframes: { speechDrift: [[0, 20], [12, 80]], heartRate: [[0, 70], [23, 115]] },
 };
 const run = (seed: number, scenario?: Scenario, initial = defaultState()) =>
-  simulate24h(DEFAULT_BASELINE, initial, { rng: createRng(seed), scenario });
+  simulate24h(ELEANOR, initial, { rng: createRng(seed), scenario });
 
 describe('valueAt', () => {
   const k: [number, number][] = [[4, 10], [8, 30], [10, 20]];
@@ -52,8 +53,9 @@ describe('simulate24h', () => {
       const snaps = run(seed, TEST_SCENARIO);
       expect(snaps[0].highStreak).toBe(0);
       for (const s of snaps) {
-        const risks = computeRisks(s.state, computeDeviations(DEFAULT_BASELINE, s.state), DEFAULT_BASELINE);
-        expect(s.intervention.level).toBe(selectIntervention(s.state, risks, s.highStreak).level);
+        const { alert } = assess(s.state, ELEANOR);
+        expect(s.intervention.level).toBe(selectIntervention(s.state, alert, s.highStreak, ELEANOR).level);
+        expect(s.alert).toEqual(alert);
       }
     }
   });
@@ -84,7 +86,7 @@ describe('startStateFor', () => {
 describe('events', () => {
   const story = (id: string) => {
     const sc = SCENARIOS.find(s => s.id === id)!;
-    return simulate24h(DEFAULT_BASELINE, defaultState(), { rng: createRng(sc.seed), scenario: sc });
+    return simulate24h(residentById(sc.residentId), defaultState(), { rng: createRng(sc.seed), scenario: sc });
   };
   const labelsAt = (snaps: ReturnType<typeof story>, hour: number) => snaps[hour].events.map(e => e.label);
 
@@ -102,7 +104,7 @@ describe('events', () => {
   });
 
   it('logs moderate fall risk too, with its band as the severity', () => {
-    const snaps = run(3, { ...TEST_SCENARIO, useWearables: false, keyframes: { mobility: [[0, 35], [23, 35]] } });
+    const snaps = run(3, { ...TEST_SCENARIO, useWearables: false, keyframes: { mobility: [[0, 40], [23, 40]] } });
     const fall = snaps.flatMap(s => s.events).filter(e => e.label === 'Fall risk elevated');
     expect(fall.length).toBeGreaterThan(0);
     expect(fall.some(e => e.urgency === 'Medium')).toBe(true);
@@ -126,16 +128,22 @@ describe('events', () => {
   });
 
   it('names the driving concern when only the combined score is Medium', () => {
-    // UTI 16:00 at its default seed: cognitive 39 (Low), overall 44 (Medium)
-    const e = story('uti')[16].events.find(ev => ev.label === 'Confusion signs');
-    expect(e?.urgency).toBe('Low');
-    expect(e?.detail).toMatch(/main driver/i);
+    // A day built to sit where no single concern is Medium but together they are
+    const snaps = run(3, { ...TEST_SCENARIO, useWearables: false, keyframes: { speechDrift: [[0, 42], [23, 42]], socialIsolation: [[0, 44], [23, 44]] } });
+    const combinedOnly = snaps.filter(s => s.alert.overall >= 40 && s.alert.fall < 40 && s.alert.cognitive < 40 && s.alert.loneliness < 40);
+    expect(combinedOnly.length).toBeGreaterThan(0);
+    for (const s of combinedOnly) {
+      const driver = s.events.find(e => /main driver/i.test(e.detail));
+      expect(driver?.urgency, `${s.hour}:00`).toBe('Low');
+    }
   });
 });
 
 describe('random days sleep', () => {
   const days = (start = defaultState(), n = 120) =>
-    Array.from({ length: n }, (_, i) => simulate24h(DEFAULT_BASELINE, start, { rng: createRng(i + 1) }));
+    Array.from({ length: n }, (_, i) => simulate24h(ELEANOR, start, { rng: createRng(i + 1) }));
+  const daysFor = (r: Resident, n = 150) =>
+    Array.from({ length: n }, (_, i) => simulate24h(r, r.usual, { rng: createRng(i + 1) }));
   const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
   const NIGHT = [0, 1, 2, 3, 4, 5, 22, 23];
 
@@ -158,8 +166,39 @@ describe('random days sleep', () => {
   });
 
   it('reads High fall risk on well under half the night hours for a frail resident', () => {
-    const nights = days({ ...defaultState(), mobility: 25, restlessness: 60 }).flatMap(d => NIGHT.map(h => d[h]));
+    const nights = daysFor(residentById('walter')).flatMap(d => NIGHT.map(h => d[h]));
     const share = nights.filter(s => s.risks.fall >= 70).length / nights.length;
     expect(share).toBeLessThan(0.4);
+  });
+});
+
+describe('residents on random days', () => {
+  const daysFor = (r: Resident, n = 150) =>
+    Array.from({ length: n }, (_, i) => simulate24h(r, r.usual, { rng: createRng(i + 1) }));
+  const emptyShare = (r: Resident) => daysFor(r).filter(d => d.every(s => s.events.length === 0)).length / 150;
+
+  it('gives Eleanor mostly eventful days, and the others more so', () => {
+    // Eleanor is the healthy one: about a third of her days are quiet, as they should be
+    expect(emptyShare(ELEANOR)).toBeLessThan(0.4);
+    for (const id of ['walter', 'margaret', 'joseph']) expect(emptyShare(residentById(id)), id).toBeLessThan(0.25);
+  });
+
+  it('does not keep Walter at Level 3+ through most of his nights', () => {
+    const nights = daysFor(residentById('walter')).flatMap(d => [0, 1, 2, 3, 4, 5, 22, 23].map(h => d[h]));
+    expect(nights.filter(s => s.intervention.level >= 3).length / nights.length).toBeLessThan(0.4);
+  });
+
+  it('varies from seed to seed: some days carry an off episode', () => {
+    const peaks = daysFor(ELEANOR).map(d => Math.max(...d.map(s => s.alert.overall)));
+    expect(peaks.filter(p => p >= 40).length).toBeGreaterThan(30);
+    expect(peaks.filter(p => p < 20).length).toBeGreaterThan(30);
+  });
+
+  it('starts a story from its own resident', () => {
+    const sc = SCENARIOS.find(s => s.id === 'restless-night')!;
+    const walter = residentById('walter');
+    const snaps = simulate24h(walter, ELEANOR.usual, { rng: createRng(1), scenario: sc });
+    expect(snaps[12].state.mobility).toBeGreaterThan(walter.usual.mobility - 10);
+    expect(snaps[12].state.mobility).toBeLessThan(walter.usual.mobility + 10);
   });
 });

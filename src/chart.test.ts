@@ -1,12 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { DEFAULT_BASELINE, defaultState } from './baseline';
+import { ELEANOR } from './residents';
+import { defaultState } from './baseline';
 import { createRng } from './rng';
 import { simulate24h } from './simulation';
 import { renderTimelineChart } from './chart';
 
 describe('renderTimelineChart', () => {
   const box = { innerHTML: '' } as HTMLElement;
-  renderTimelineChart(box, simulate24h(DEFAULT_BASELINE, defaultState(), { rng: createRng(1) }));
+  renderTimelineChart(box, simulate24h(ELEANOR, defaultState(), { rng: createRng(1) }));
 
   it('writes legend labels in a text colour, not the pale series colour', () => {
     for (const label of ['Fall', 'Cognitive', 'Loneliness']) {
@@ -23,7 +24,7 @@ describe('renderTimelineChart', () => {
 describe('renderTimelineChart at the first hour', () => {
   it('draws no NaN coordinates when only one hour exists yet', () => {
     const box = { innerHTML: '' } as HTMLElement;
-    renderTimelineChart(box, simulate24h(DEFAULT_BASELINE, defaultState(), { rng: createRng(1) }).slice(0, 1));
+    renderTimelineChart(box, simulate24h(ELEANOR, defaultState(), { rng: createRng(1) }).slice(0, 1));
     expect(box.innerHTML).not.toContain('NaN');
   });
 });

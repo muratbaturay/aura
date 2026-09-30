@@ -13,29 +13,41 @@ export interface Assessment {
   explanation: ExplanationOutput;
 }
 
-/** Standing fall risk at or above this while up at night escalates whatever her normal. */
+/** Red flags while up at night, whatever her normal: a staff check (Level 3). */
+const UP_AT_NIGHT_FLOOR = 70;
+const BED_EXIT_LABEL = 'Up at night · bed-exit alert (care plan)';
 const UNSTEADY_UP_FALL = 85;
-const UNSTEADY_UP_FLOOR = 70;
 const UNSTEADY_UP_LABEL = 'Up at night, very unsteady';
+
+/** A rise above usual of about 27 points (on a low usual) reads as Medium. */
+const ALERT_GAIN = 1.5;
 
 const clamp = (v: number) => Math.max(0, Math.min(100, v));
 
 /**
  * Compare her state now with her usual state at the same hour. Each domain's
- * alert is the rise above usual as a share of the headroom left
- * (100 × (now − usual) / (100 − usual)); the overall alert combines domains as
- * the standing score does, with absolute red flags as floors.
+ * alert is the rise above usual as a share of the headroom left, with a gain
+ * (1.5 × 100 × (now − usual) / (100 − usual)); the overall alert combines
+ * domains as the standing score does, with absolute red flags as floors.
  */
 export function assess(state: CurrentState, resident: Resident): Assessment {
   const { baseline } = resident;
   const devs = computeDeviations(baseline, state);
   const standing = computeRisks(state, devs, baseline);
+  const night = isNightHour(state.timeOfDay, baseline);
   const usualState = usualStateAt(resident, state.timeOfDay);
   const usualDevs = computeDeviations(baseline, usualState);
-  const usual = computeRisks(usualState, usualDevs, baseline);
+  const usualAll = computeRisks(usualState, usualDevs, baseline);
+  // Fall risk at night is compared with her usual *when up as much as she is now*:
+  // getting up is not itself a change, being less steady than usual while up is.
+  const fallRef = night ? { ...usualState, restlessness: state.restlessness } : usualState;
+  const fallRefDevs = computeDeviations(baseline, fallRef);
+  const fallRisks = night ? computeRisks(fallRef, fallRefDevs, baseline) : usualAll;
+  const usual: RiskScores = { ...usualAll, fall: fallRisks.fall };
 
   const nowParts = domainContributions(state, devs, baseline, standing);
-  const usualParts = domainContributions(usualState, usualDevs, baseline, usual);
+  const usualParts = domainContributions(usualState, usualDevs, baseline, usualAll);
+  usualParts.fall = domainContributions(fallRef, fallRefDevs, baseline, fallRisks).fall;
 
   const alert = { fall: 0, cognitive: 0, loneliness: 0, overall: 0 };
   const parts = {} as Record<RiskDomain, Map<string, number>>;
@@ -44,7 +56,7 @@ export function assess(state: CurrentState, resident: Resident): Assessment {
     const headroom = Math.max(1, 100 - usual[d]);
     parts[d] = new Map();
     if (excess <= 0) continue;
-    alert[d] = clamp((100 * excess) / headroom);
+    alert[d] = clamp((ALERT_GAIN * 100 * excess) / headroom);
     // Only what rose is shown; scaled so the parts add up to this domain's alert
     const rises = [...new Set([...nowParts[d].keys(), ...usualParts[d].keys()])]
       .map(label => [label, (nowParts[d].get(label) ?? 0) - (usualParts[d].get(label) ?? 0)] as const)
@@ -57,11 +69,11 @@ export function assess(state: CurrentState, resident: Resident): Assessment {
   const [worst, second] = rankDomains(alert);
   const combined = alert[worst] + alert[second] * SECOND_DOMAIN_WEIGHT;
   const flag = vitalsFlag(state);
-  const unsteadyUp = isNightHour(state.timeOfDay, baseline)
-    && timeUp(state, baseline) >= 0.5 && standing.fall >= UNSTEADY_UP_FALL;
+  const up = night && timeUp(state, baseline) >= 0.5;
   const floors: [string, number][] = [];
   if (flag !== 'none') floors.push([vitalsFlagLabel(state, flag), VITALS_FLOOR[flag]]);
-  if (unsteadyUp) floors.push([UNSTEADY_UP_LABEL, UNSTEADY_UP_FLOOR]);
+  if (up && standing.fall >= UNSTEADY_UP_FALL) floors.push([UNSTEADY_UP_LABEL, UP_AT_NIGHT_FLOOR]);
+  else if (up && resident.bedExitAlert) floors.push([BED_EXIT_LABEL, UP_AT_NIGHT_FLOOR]);
   const [floorLabel, floor] = floors.reduce<[string, number]>((a, b) => (b[1] > a[1] ? b : a), ['', 0]);
   const total = Math.max(combined, floor);
   alert.overall = clamp(total);

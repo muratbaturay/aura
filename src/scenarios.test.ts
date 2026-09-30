@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { DEFAULT_BASELINE, defaultState } from './baseline';
+import { residentById } from './residents';
+import { defaultState } from './baseline';
 import { createRng } from './rng';
 import { simulate24h } from './simulation';
 import { SCENARIOS } from './scenarios';
@@ -22,7 +23,7 @@ describe('scenario stories', () => {
     it(`${id} hits its target levels for 200 seeds and its default seed`, () => {
       const scenario = SCENARIOS.find(s => s.id === id)!;
       for (const seed of [scenario.seed, ...SEEDS]) {
-        const snaps = simulate24h(DEFAULT_BASELINE, defaultState(), { rng: createRng(seed), scenario });
+        const snaps = simulate24h(residentById(scenario.residentId), defaultState(), { rng: createRng(seed), scenario });
         for (const [hour, allowed] of targets) {
           expect(allowed, `${id} seed ${seed} hour ${hour}`).toContain(snaps[hour].intervention.level);
         }
@@ -40,7 +41,13 @@ describe('scenario stories', () => {
     }
   });
 
-  it('turns wearables on only for the UTI story', () => {
-    expect(SCENARIOS.filter(s => s.useWearables).map(s => s.id)).toEqual(['uti']);
+  it('turns wearables on for the UTI story and for Joseph', () => {
+    expect(SCENARIOS.filter(s => s.useWearables).map(s => s.id)).toEqual(['uti', 'withdrawn']);
+  });
+
+  it('belongs each story to its resident', () => {
+    expect(Object.fromEntries(SCENARIOS.map(s => [s.id, s.residentId]))).toEqual({
+      sundowning: 'margaret', uti: 'eleanor', withdrawn: 'joseph', 'restless-night': 'walter',
+    });
   });
 });

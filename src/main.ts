@@ -10,6 +10,7 @@ import { selectIntervention } from './intervention';
 import { simulate24h, startStateFor } from './simulation';
 import { createRng, randomSeed, parseSeed } from './rng';
 import { SCENARIOS } from './scenarios';
+import { ELEANOR, residentById } from './residents';
 import { haloView, scoreBarSegments } from './view';
 import { themeFor, partOfDay, resolveTheme, loadThemePreference, saveThemePreference, type ThemePreference } from './theme';
 import { eventLanes, hourEvents } from './lanes';
@@ -621,7 +622,7 @@ function setupScenarioUI() {
   // Each story card previews its whole day at the default seed
   const cards = [{ id: '', name: 'Random day', description: 'Drifts from the current sliders. Different every run.', meta: 'any seed', arc: null as number[] | null }]
     .concat(SCENARIOS.map(sc => {
-      const levels = simulate24h(DEFAULT_BASELINE, defaultState(), { rng: createRng(sc.seed), scenario: sc })
+      const levels = simulate24h(residentById(sc.residentId), defaultState(), { rng: createRng(sc.seed), scenario: sc })
         .map(snap => snap.intervention.level);
       return { id: sc.id, name: sc.name, description: sc.description, meta: `peaks at L${Math.max(...levels)} · seed ${sc.seed}`, arc: levels };
     }));
@@ -702,7 +703,7 @@ function runSimulation() {
 
   const start = startStateFor(seed, state, lastRun);
   lastRun = { seed, start: { ...start } };
-  runSnapshots = simulate24h(DEFAULT_BASELINE, start, { rng: createRng(seed), scenario });
+  runSnapshots = simulate24h(scenario ? residentById(scenario.residentId) : ELEANOR, start, { rng: createRng(seed), scenario });
   runComplete = false;
   runChapters = scenario?.chapters ?? levelChapters(runSnapshots.map(sn => sn.intervention.level));
   buildChapters();

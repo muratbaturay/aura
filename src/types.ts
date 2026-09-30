@@ -91,6 +91,7 @@ export interface SimulationSnapshot {
   intervention: InterventionOutput;
   events: TimelineEvent[];
   highStreak: number;       // consecutive High-overall hours before this one
+  alert: RiskScores;        // change from the resident's usual: drives the ladder
 }
 
 // ── LLM Messaging ───────────────────────────────────────────
