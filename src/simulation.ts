@@ -1,61 +1,52 @@
 import type { ResidentBaseline, CurrentState, RiskScores, TimelineEvent, SimulationSnapshot } from './types';
-import { computeDeviations, isNightHour } from './baseline';
+import { computeDeviations, defaultState, isNightHour } from './baseline';
 import { computeRisks, urgencyBand } from './risk';
 import { selectIntervention } from './intervention';
+import { valueAt } from './scenarios';
+import type { Scenario, ScenarioSignal, Keyframes } from './scenarios';
 
-function randWalk(current: number, lo: number, hi: number, step: number): number {
-  const delta = (Math.random() - 0.5) * 2 * step;
+export interface SimulationOptions {
+  rng: () => number;       // seeded generator — same seed, same day
+  scenario?: Scenario;     // scripted story; omitted = random day from initialState
+}
+
+function randWalk(current: number, lo: number, hi: number, step: number, rng: () => number): number {
+  const delta = (rng() - 0.5) * 2 * step;
   return Math.max(lo, Math.min(hi, current + delta));
 }
 
+// Scenario noise amplitude and clamp range per signal
+const NOISE: Record<ScenarioSignal, number> = {
+  mobility: 3, restlessness: 3, speechDrift: 3, socialIsolation: 3, heartRate: 2, spO2: 0.3,
+};
+const RANGE: Record<ScenarioSignal, [number, number]> = {
+  mobility: [0, 100], restlessness: [0, 100], speechDrift: [0, 100], socialIsolation: [0, 100],
+  heartRate: [40, 140], spO2: [85, 100],
+};
+
 export function simulate24h(
   baseline: ResidentBaseline,
-  initialState: CurrentState
+  initialState: CurrentState,
+  options: SimulationOptions
 ): SimulationSnapshot[] {
+  const { rng, scenario } = options;
   const snapshots: SimulationSnapshot[] = [];
-  const state: CurrentState = { ...initialState };
-  let recentHighCount = 0;
+  // A scenario starts from the default resident so slider positions can't change the story
+  const state: CurrentState = scenario
+    ? { ...defaultState(), useWearables: scenario.useWearables }
+    : { ...initialState };
+  let highStreak = 0;
 
   for (let h = 0; h < 24; h++) {
     state.timeOfDay = h;
     const night = isNightHour(h, baseline);
 
-    // Drift sliders with random walk
-    state.mobility = randWalk(state.mobility, 15, 95, night ? 12 : 6);
-    state.restlessness = randWalk(state.restlessness, 5, 90, night ? 15 : 8);
-    state.speechDrift = randWalk(state.speechDrift, 5, 85, 5);
-    state.socialIsolation = randWalk(state.socialIsolation, 10, 90, 6);
-
-    if (state.useWearables) {
-      state.heartRate = randWalk(state.heartRate, 50, 130, 5);
-      state.spO2 = randWalk(state.spO2, 88, 100, 1.5);
-    }
-
-    // Night patterns
-    if (night) {
-      state.restlessness += Math.random() > 0.7 ? 12 : -3;
-      state.mobility -= Math.random() > 0.6 ? 8 : 0;
-    } else {
-      state.socialIsolation -= Math.random() > 0.5 ? 5 : -3;
-    }
-
-    // Clamp
-    state.mobility = Math.max(0, Math.min(100, state.mobility));
-    state.restlessness = Math.max(0, Math.min(100, state.restlessness));
-    state.speechDrift = Math.max(0, Math.min(100, state.speechDrift));
-    state.socialIsolation = Math.max(0, Math.min(100, state.socialIsolation));
-    if (state.useWearables) {
-      state.heartRate = Math.max(40, Math.min(140, state.heartRate));
-      state.spO2 = Math.max(85, Math.min(100, state.spO2));
-    }
+    if (scenario) applyScenario(state, scenario, h, rng);
+    else randomDrift(state, night, rng);
 
     const devs = computeDeviations(baseline, state);
     const risks = computeRisks(state, devs, baseline);
-    const intervention = selectIntervention(state, risks, recentHighCount);
-
-    if (urgencyBand(risks.overall) === 'High') recentHighCount++;
-    else recentHighCount = Math.max(0, recentHighCount - 1);
-
+    const intervention = selectIntervention(state, risks, highStreak);
     const events = generateEvents(h, state, risks, night, baseline);
 
     snapshots.push({
@@ -64,10 +55,52 @@ export function simulate24h(
       risks: { ...risks },
       intervention: { ...intervention },
       events,
+      highStreak,
     });
+
+    highStreak = urgencyBand(risks.overall) === 'High' ? highStreak + 1 : 0;
   }
 
   return snapshots;
+}
+
+function applyScenario(state: CurrentState, scenario: Scenario, hour: number, rng: () => number): void {
+  for (const [signal, keyframes] of Object.entries(scenario.keyframes) as [ScenarioSignal, Keyframes][]) {
+    const [lo, hi] = RANGE[signal];
+    const noisy = valueAt(keyframes, hour) + (rng() - 0.5) * 2 * NOISE[signal];
+    state[signal] = Math.max(lo, Math.min(hi, noisy));
+  }
+}
+
+function randomDrift(state: CurrentState, night: boolean, rng: () => number): void {
+  // Drift sliders with random walk
+  state.mobility = randWalk(state.mobility, 15, 95, night ? 12 : 6, rng);
+  state.restlessness = randWalk(state.restlessness, 5, 90, night ? 15 : 8, rng);
+  state.speechDrift = randWalk(state.speechDrift, 5, 85, 5, rng);
+  state.socialIsolation = randWalk(state.socialIsolation, 10, 90, 6, rng);
+
+  if (state.useWearables) {
+    state.heartRate = randWalk(state.heartRate, 50, 130, 5, rng);
+    state.spO2 = randWalk(state.spO2, 88, 100, 1.5, rng);
+  }
+
+  // Night patterns
+  if (night) {
+    state.restlessness += rng() > 0.7 ? 12 : -3;
+    state.mobility -= rng() > 0.6 ? 8 : 0;
+  } else {
+    state.socialIsolation -= rng() > 0.5 ? 5 : -3;
+  }
+
+  // Clamp
+  state.mobility = Math.max(0, Math.min(100, state.mobility));
+  state.restlessness = Math.max(0, Math.min(100, state.restlessness));
+  state.speechDrift = Math.max(0, Math.min(100, state.speechDrift));
+  state.socialIsolation = Math.max(0, Math.min(100, state.socialIsolation));
+  if (state.useWearables) {
+    state.heartRate = Math.max(40, Math.min(140, state.heartRate));
+    state.spO2 = Math.max(85, Math.min(100, state.spO2));
+  }
 }
 
 function generateEvents(

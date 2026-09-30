@@ -8,6 +8,7 @@ import { DEFAULT_BASELINE, defaultState, computeDeviations } from './baseline';
 import { computeRisks, urgencyBand, buildExplanation } from './risk';
 import { selectIntervention } from './intervention';
 import { simulate24h } from './simulation';
+import { createRng, randomSeed } from './rng';
 import { renderComparisonChart, renderTimelineChart } from './chart';
 import {
   loadLLMConfig, saveLLMConfig, isLLMAvailable,
@@ -505,7 +506,7 @@ async function runSimulation() {
   lastLLMMessages = null;
   prevSignature = '';
 
-  const snapshots = simulate24h(DEFAULT_BASELINE, state);
+  const snapshots = simulate24h(DEFAULT_BASELINE, state, { rng: createRng(randomSeed()) });
 
   for (let i = 0; i < snapshots.length; i++) {
     const snap = snapshots[i];
@@ -513,7 +514,7 @@ async function runSimulation() {
 
     Object.assign(state, snap.state);
     timelineEvents.push(...snap.events);
-    highStreak = urgencyBand(snap.risks.overall) === 'High' ? highStreak + 1 : 0;
+    highStreak = snap.highStreak; // same streak the simulation used, so the level matches
 
     syncSlidersFromState();
     update(); // LLM gated out by simRunning flag

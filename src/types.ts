@@ -90,6 +90,7 @@ export interface SimulationSnapshot {
   risks: RiskScores;
   intervention: InterventionOutput;
   events: TimelineEvent[];
+  highStreak: number;       // consecutive High-overall hours before this one
 }
 
 // ── LLM Messaging ───────────────────────────────────────────
