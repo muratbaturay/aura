@@ -300,6 +300,7 @@ function maybeRequestLLM(
 
 // Force refresh: bypasses signature check and debounce
 function forceRefreshLLM() {
+  if (simRunning) return; // no LLM calls mid-run or while reviewing an hour
   if (!isLLMAvailable(llmConfig)) return;
   if (!lastIntervention || !lastRisks || !lastExplanation) return;
   if (lastIntervention.level < 2) return;
@@ -620,7 +621,7 @@ function setSpeed(ms: number) {
 function setRunning(on: boolean, status: string) {
   document.querySelectorAll<HTMLInputElement>('.studio .slider').forEach(el => { el.disabled = on; });
   document.querySelectorAll<HTMLButtonElement>('.story-card').forEach(el => { el.disabled = on; });
-  for (const id of ['wearToggle', 'seedInput', 'btnNewSeed', 'btnRandomize', 'btnSimulate']) {
+  for (const id of ['wearToggle', 'seedInput', 'btnNewSeed', 'btnRandomize', 'btnSimulate', 'btnRefreshLLM']) {
     (document.getElementById(id) as HTMLInputElement | HTMLButtonElement).disabled = on;
   }
   const chip = document.getElementById('storyChip')!;
@@ -677,6 +678,10 @@ function runSimulation() {
 
 /** Show hour i of the current run: the state, the events so far and the streak it used. */
 function showHour(i: number) {
+  // Messages generated for another hour must not appear here
+  stopLLMWork();
+  lastLLMMessages = null;
+  prevSignature = '';
   const snap = runSnapshots[i];
   simSnapshots = runSnapshots.slice(0, i + 1);
   timelineEvents = simSnapshots.flatMap(sn => sn.events);
@@ -779,9 +784,8 @@ function renderPlaybackBar() {
   playBtn.setAttribute('aria-label', playing ? 'Pause' : status === 'ended' ? 'Replay the day' : 'Play');
   (document.getElementById('pbScrub') as HTMLInputElement).value = String(Math.max(0, index));
   document.getElementById('pbSpeed')!.textContent = `${speedMs / 1000} s per hour`;
-  if (currentRun && status !== 'ended') {
-    document.getElementById('storyStatus')!.textContent = playing ? 'Playing' : 'Paused';
-  }
+  // Controls lock only while the day is playing; paused or finished, the user can take over
+  setRunning(playing, playing ? 'Playing' : status === 'ended' ? 'Complete' : 'Paused');
 }
 
 function resetAll() {

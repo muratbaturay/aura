@@ -85,8 +85,8 @@ export function renderTimelineChart(
 
   const series: { label: string; color: string; data: number[] }[] = [
     { label: 'Fall', color: 'var(--c-level-4)', data: snapshots.map(s => s.risks.fall) },
-    { label: 'Cognitive', color: 'var(--c-level-2)', data: snapshots.map(s => s.risks.cognitive) },
-    { label: 'Loneliness', color: 'var(--c-level-1)', data: snapshots.map(s => s.risks.loneliness) },
+    { label: 'Cognitive', color: 'var(--c-amber)', data: snapshots.map(s => s.risks.cognitive) },
+    { label: 'Loneliness', color: 'var(--c-blue)', data: snapshots.map(s => s.risks.loneliness) },
   ];
 
   let svg = `<svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">`;
@@ -115,7 +115,7 @@ export function renderTimelineChart(
   // Lines
   for (const s of series) {
     const points = s.data.map((v, i) => {
-      const x = pad.left + (i / (s.data.length - 1)) * plotW;
+      const x = pad.left + (i / 23) * plotW; // hour i on the 0–24 h axis (one point at the first hour)
       const y = pad.top + plotH - (v / 100) * plotH;
       return `${x},${y}`;
     });
@@ -126,7 +126,7 @@ export function renderTimelineChart(
   let lx = pad.left;
   for (const s of series) {
     svg += `<line x1="${lx}" y1="10" x2="${lx + 14}" y2="10" stroke="${s.color}" stroke-width="2"/>`;
-    svg += `<text x="${lx + 18}" y="13" font-size="9" fill="${s.color}">${s.label}</text>`;
+    svg += `<text x="${lx + 18}" y="13" font-size="9" fill="${COLORS.label}">${s.label}</text>`;
     lx += 75;
   }
 
