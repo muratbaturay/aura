@@ -65,7 +65,8 @@
 
   /* ── Typography ───────────────────────────────────────── */
   --ff-base:        'Instrument Sans', system-ui, -apple-system, sans-serif;
-  --ff-display:     'Fraunces', Georgia, serif;
+  --ff-display:     'Bricolage Grotesque', system-ui, sans-serif;   /* headings, numbers, big type */
+  --ff-quote:       'Fraunces', Georgia, serif;                     /* words spoken to the resident */
   --ff-mono:        'IBM Plex Mono', ui-monospace, monospace;
   --fw-regular:     400;
   --fw-medium:      500;
