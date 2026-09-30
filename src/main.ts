@@ -81,6 +81,7 @@ const wearToggle = document.getElementById('wearToggle') as HTMLInputElement;
 wearToggle.checked = state.useWearables;
 wearToggle.addEventListener('change', () => {
   state.useWearables = wearToggle.checked;
+  recentHighCount = 0;
   document.getElementById('vitalsSection')!.classList.toggle('hidden', !state.useWearables);
   update();
 });
@@ -553,6 +554,7 @@ function randomize() {
     state.heartRate = 55 + Math.random() * 75;
     state.spO2 = 88 + Math.random() * 12;
   }
+  recentHighCount = 0;
   lastLLMMessages = null;
   prevSignature = '';
   syncSlidersFromState();
@@ -575,6 +577,7 @@ function bindSlider(
   slider.addEventListener('input', () => {
     const v = parseFloat(slider.value);
     setter(v);
+    recentHighCount = 0; // "repeated high" only means something inside a simulated day
     display.textContent = formatSliderVal(id, v);
     update();
   });

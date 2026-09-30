@@ -41,6 +41,8 @@ export interface RiskScores {
 
 export type UrgencyBand = 'Low' | 'Medium' | 'High';
 
+export type VitalsFlag = 'none' | 'amber' | 'red';
+
 export type InterventionLevel = 1 | 2 | 3 | 4;
 
 export interface InterventionOutput {

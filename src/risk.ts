@@ -1,4 +1,4 @@
-import type { ResidentBaseline, CurrentState, Deviations, RiskScores, UrgencyBand, ExplanationOutput } from './types';
+import type { ResidentBaseline, CurrentState, Deviations, RiskScores, UrgencyBand, VitalsFlag, ExplanationOutput } from './types';
 import { isNightHour } from './baseline';
 
 function clamp(v: number, lo = 0, hi = 100): number {
@@ -48,9 +48,25 @@ export function computeRisks(
   loneliness = clamp(loneliness);
 
   // ── Overall Urgency ──
-  const overall = clamp(fall * 0.40 + cognitive * 0.30 + loneliness * 0.30);
+  // Worst domain, nudged up when a second domain is also elevated — a single
+  // severe concern is never diluted by calm signals elsewhere.
+  const [worst, second] = [fall, cognitive, loneliness].sort((a, b) => b - a);
+  let overall = worst + second * 0.2;
+  // Vitals floor keeps the overall card consistent with vitals-driven escalation
+  const vitals = vitalsFlag(state);
+  if (vitals === 'red') overall = Math.max(overall, 70);
+  else if (vitals === 'amber') overall = Math.max(overall, 40);
+  overall = clamp(overall);
 
   return { fall, cognitive, loneliness, overall };
+}
+
+/** Wearable red flags: red always escalates, amber warrants a staff check. */
+export function vitalsFlag(state: CurrentState): VitalsFlag {
+  if (!state.useWearables) return 'none';
+  if (state.spO2 < 90 || state.heartRate > 120) return 'red';
+  if (state.spO2 < 92 || state.heartRate > 110) return 'amber';
+  return 'none';
 }
 
 export function urgencyBand(score: number): UrgencyBand {
@@ -84,13 +100,10 @@ export function buildExplanation(
   // Social isolation
   if (state.socialIsolation > 45)
     factors.push({ factor: 'Social isolation trend', weight: +state.socialIsolation / 100 });
-  // Staff load
-  if (state.staffLoad > 60)
-    factors.push({ factor: 'High staff workload', weight: +state.staffLoad / 120 });
-  // Vitals
-  if (state.useWearables && state.heartRate > 100)
+  // Vitals (same thresholds as the amber flag in vitalsFlag)
+  if (state.useWearables && state.heartRate > 110)
     factors.push({ factor: 'Elevated heart rate', weight: 0.5 });
-  if (state.useWearables && state.spO2 < 93)
+  if (state.useWearables && state.spO2 < 92)
     factors.push({ factor: 'Low blood oxygen', weight: 0.7 });
   // Deviations
   if (deviations.mobility > 1.5)
