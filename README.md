@@ -4,7 +4,8 @@ A browser-based simulator that models an ambient AI system for assisted-living e
 
 ## Features
 
-- **Scenario Controls** — Adjust time of day, mobility, restlessness, speech drift, social isolation, staff load, and optional wearable vitals (heart rate, SpO2) via sliders.
+- **Dusk & Dawn Care View** — Three columns: the resident's status, their day, and why AURA acted / what it is doing. The interface follows the simulated clock: warm paper by day, a dim, warm, night-safe theme from 22:00 to 06:00. Type: Fraunces, Instrument Sans, IBM Plex Mono.
+- **Scenario Studio** — A side drawer holding the simulator: story cards (each previewing its day as a 24-hour strip), seed, playback speed (fast / narrate / slow), manual sliders for time of day, mobility, restlessness, speech drift, social isolation, staff load and optional wearable vitals, the charts and the LLM settings.
 - **Baseline Deviation Model** — Computes normalized z-score deltas from a resident's learned baseline to detect anomalies.
 - **Risk Scoring** — Deterministic weighted scoring for fall risk, cognitive concern, and loneliness (0–100 each). Overall urgency follows the worst domain (plus 0.2 × the second-worst), so one severe concern is never averaged away; wearable red/amber vitals put a floor under it. Bands: Low / Medium / High.
 - **4-Level Intervention Ladder**
@@ -14,12 +15,15 @@ A browser-based simulator that models an ambient AI system for assisted-living e
   4. Escalate (urgent staff notification) — red vitals (SpO2 < 90%, HR > 120), two High domains, a High domain with amber vitals, or overall High for 3+ hours in a row during a simulation (ends as soon as urgency drops out of High)
 
   Staff load never changes the level; when it is high it adds a prioritization note to the staff message.
-- **Status Halo** — The overall score sits inside a halo coloured by the current intervention level; it breathes slower when calm and faster as the ladder climbs (8 s → 2.4 s per breath; no motion when the viewer prefers reduced motion). Beside it, the three domain scores with their Medium/High thresholds.
+- **Status Halo** — The overall score sits inside a halo coloured by the current intervention level; it breathes slower when calm and faster as the ladder climbs (8 s → 2.4 s per breath; no motion when the viewer prefers reduced motion). Below it, the intervention ladder, the three domain scores with their Medium/High thresholds, and wearable vitals when enabled.
 - **Explainability Panel** — States the ladder rule that set the level, then draws the Overall score as one bar split into its contributing signals (exact additive contributions from the scoring model, so the segments add up to the score), with a legend, the 40/70 thresholds and a natural-language summary built from the same numbers.
-- **24-Hour Simulation** — Animated walk-through of a full day with random drift, night patterns, and event generation. Every run is seeded: the seed is shown after a random day, and typing it back in replays that day exactly.
+- **24-Hour Ring** — The day as a dial: one slice per hour, coloured by intervention level as the run plays, night hours marked on an outer arc, a dot on the current hour.
+- **24-Hour Simulation & Playback** — Animated walk-through of a full day with random drift, night patterns, and event generation. Play, pause, step an hour, or scrub to any hour, during and after a run. Every run is seeded: the seed is shown after a random day, and typing it back in replays that day exactly. Adaptive (LLM) messages stay off until the run ends.
+- **Story Chapters** — Each story's beats (or, for a random day, its level changes) appear under the playback bar as past / now / upcoming; click one to jump there.
+- **What AURA Is Doing & Staff Acknowledgement** — What was said to the resident, what was sent to staff, and what changed in the room. When a staff alert is raised (Level 3+, or a rise to Level 4) the card waits for a staff member to acknowledge, with a live timer; acknowledging records how long it took. UI only — it does not change the risk model.
 - **Scenario Presets** — Scripted one-day stories for demos, each walking the intervention ladder along a different path: *Sundowning evening* (cognitive → Level 4 at night), *UTI onset* (confusion + rising heart rate → Level 4, then recovery), *Withdrawn day* (loneliness, gentle prompts only) and *Restless night* (fall risk → Level 4 in the small hours). Each has a fixed seed so the demo plays the same way every time; stories play at 0.5 s per hour.
 - **Optional LLM Messaging** — Toggle on adaptive, AI-generated resident and staff messages via any OpenAI-compatible API (OpenAI, Ollama, LM Studio). Falls back to deterministic templates when disabled.
-- **SVG Charts** — Baseline vs Current bar chart and 24h risk trend lines with night-band shading.
+- **SVG Charts** — Baseline vs Current bar chart and 24h risk trend lines with night-band shading, in the Scenario Studio.
 - **Event Timeline** — Chronological feed of detected events with severity markers.
 
 ## Tech Stack
@@ -72,6 +76,16 @@ src/
 ├── escalation.test.ts      # Vitest coverage for scoring and the intervention ladder
 ├── chart.ts                # SVG chart renderers (comparison + timeline)
 ├── view.ts                 # View models: halo per level, explanation score-bar segments
+├── theme.ts                # Day/night theme from the simulated clock; part of day
+├── ring.ts                 # 24-hour ring segments, gradients and positions
+├── playback.ts             # Playback controller (play, pause, seek, step, speed)
+├── chapters.ts             # Story chapters and past/now/upcoming view
+├── ack.ts                  # Staff acknowledgement state (reducer)
+├── ui/
+│   ├── template.ts         # Page markup
+│   ├── drawer.ts           # Scenario Studio drawer (modal side panel)
+│   ├── ring.ts             # Ring rendering
+│   └── icons.ts            # Inline stroke icons
 ├── engine/
 │   └── llmMessaging.ts     # LLM controller (debounce, abort, OpenAI client)
 ├── style.css               # Page layout (imports tokens + components)
@@ -82,7 +96,7 @@ src/
 
 ## LLM Configuration
 
-1. Enable the **Adaptive Messages** toggle in the controls panel.
+1. Open **Scenario studio** → **Adaptive messages (LLM)** and enable the toggle.
 2. Enter your API key (stored in localStorage, never sent anywhere except the configured base URL).
 3. Optionally change the base URL and model name for local inference servers.
 4. Click **Test Connection** to verify.

@@ -49,6 +49,7 @@
   --c-level-3:      #D9763F;   /* Staff soft alert */
   --c-level-4:      #9E2B25;   /* Escalate */
   --c-high-text:    #A4512A;   /* "High" labels on light grounds */
+  --c-on-level:     #1F1C18;   /* text on level colours 1–3, both themes */
 
   /* Explanation score bar: largest contributor strongest */
   --c-shade-1:      #3B3630;

@@ -32,12 +32,12 @@ body {
 }
 
 /* Cards and panels ease between day and night with the page */
-.card, .controls-panel, .app-header {
+.card, .app-header, .studio {
   transition: background-color var(--dur-theme) ease, border-color var(--dur-theme) ease, color var(--dur-theme) ease;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html, .card, .controls-panel, .app-header { transition: none; }
+  html, .card, .app-header, .studio { transition: none; }
 }
 
 #app {
@@ -866,78 +866,6 @@ body {
 
 .btn-row .btn {
   flex: 1;
-}
-
-/* ── Intervention ────────────────────────────────────────── */
-
-.int-level {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  margin-bottom: var(--sp-4);
-  padding: var(--sp-3) var(--sp-4);
-  border-radius: var(--r-md);
-  background: var(--c-bg-inset);
-}
-
-.level-badge {
-  font-size: var(--fs-xs);
-  font-weight: var(--fw-bold);
-  padding: 3px 10px;
-  border-radius: var(--r-sm);
-  background: var(--c-teal);
-  color: white;
-  white-space: nowrap;
-}
-
-.level-1 .level-badge { background: var(--c-green); }
-.level-2 .level-badge { background: var(--c-amber); }
-.level-3 .level-badge { background: var(--c-level-3); }
-.level-4 .level-badge { background: var(--c-red); }
-
-.level-label {
-  font-size: var(--fs-base);
-  font-weight: var(--fw-semibold);
-  color: var(--c-text);
-}
-
-.int-msg, .int-env {
-  margin-bottom: var(--sp-3);
-  padding: var(--sp-3) var(--sp-4);
-  border-radius: var(--r-md);
-  font-size: var(--fs-sm);
-  line-height: var(--lh-relaxed);
-  border-left: 3px solid transparent;
-}
-
-.int-msg.resident {
-  background: var(--c-green-bg);
-  border-left-color: var(--c-green);
-}
-
-.int-msg.staff {
-  background: var(--c-amber-bg);
-  border-left-color: var(--c-amber);
-}
-
-.int-env {
-  background: var(--c-teal-bg);
-  border-left-color: var(--c-teal);
-}
-
-.msg-tag {
-  display: inline-block;
-  font-size: 10px;
-  font-weight: var(--fw-bold);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--c-text-muted);
-  margin-bottom: 4px;
-}
-
-.int-msg p, .int-env p {
-  margin: 4px 0 0;
-  color: var(--c-text-2);
 }
 
 /* ── Explanation ─────────────────────────────────────────── */
