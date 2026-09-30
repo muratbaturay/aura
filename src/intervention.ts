@@ -15,7 +15,7 @@ function vitalsText(state: CurrentState): string {
 export function selectIntervention(
   state: CurrentState,
   risks: RiskScores,
-  recentHighCount: number
+  highStreak: number        // consecutive High-overall hours before now
 ): InterventionOutput {
   const night = isNightHour(state.timeOfDay, DEFAULT_BASELINE);
   const vitals = vitalsFlag(state);
@@ -35,9 +35,9 @@ export function selectIntervention(
   } else if (highDomains.length >= 1 && vitals === 'amber') {
     level = 4;
     trigger = `Level 4: ${lower(highDomains[0])} is High and vitals are borderline (${vitalsText(state)}).`;
-  } else if (recentHighCount >= 3) {
+  } else if (overallBand === 'High' && highStreak >= 2) {
     level = 4;
-    trigger = 'Level 4: overall urgency was High in 3+ recent hours.';
+    trigger = 'Level 4: overall urgency has been High for 3+ hours in a row.';
   } else if (overallBand === 'High') {
     level = 3;
     trigger = 'Level 3: overall urgency is High (70+).';
@@ -129,7 +129,7 @@ function buildIntervention(
       } else if (highDomains.length >= 1 && vitals === 'amber') {
         whyEscalate = `${domainText(highDomains)} with borderline vitals (${vitalsText(state)}). Prompt attention needed.`;
       } else {
-        whyEscalate = `Repeated high-risk pattern (overall urgency High in 3+ recent hours). Prompt attention needed.`;
+        whyEscalate = `Overall urgency High for 3+ hours in a row (now ${Math.round(risks.overall)}%). Prompt attention needed.`;
       }
       return {
         level: 4,

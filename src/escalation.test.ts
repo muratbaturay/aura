@@ -5,11 +5,11 @@ import { computeRisks, urgencyBand, vitalsFlag, buildExplanation } from './risk'
 import { selectIntervention } from './intervention';
 
 // Default state: 14:00, all signals at baseline, staff load 40, wearables off.
-function evaluate(patch: Partial<CurrentState>, recentHighCount = 0) {
+function evaluate(patch: Partial<CurrentState>, highStreak = 0) {
   const state = { ...defaultState(), ...patch };
   const devs = computeDeviations(DEFAULT_BASELINE, state);
   const risks = computeRisks(state, devs, DEFAULT_BASELINE);
-  const intervention = selectIntervention(state, risks, recentHighCount);
+  const intervention = selectIntervention(state, risks, highStreak);
   const explanation = buildExplanation(state, devs, risks, DEFAULT_BASELINE);
   return { state, risks, intervention, explanation };
 }
@@ -115,8 +115,14 @@ describe('intervention ladder', () => {
     expect(evaluate({ speechDrift: 100, ...wear(91, 72) }).intervention.level).toBe(4);
   });
 
-  it('gives Level 4 after 3 consecutive High hours', () => {
-    expect(evaluate({ speechDrift: 100 }, 3).intervention.level).toBe(4);
+  it('gives Level 4 on the third High hour in a row', () => {
+    expect(evaluate({ speechDrift: 100 }, 2).intervention.level).toBe(4);
+    expect(evaluate({ speechDrift: 100 }, 1).intervention.level).toBe(3);
+  });
+
+  it('drops out of Level 4 as soon as overall is no longer High, whatever the streak', () => {
+    expect(evaluate({}, 5).intervention.level).toBe(1);
+    expect(evaluate({ socialIsolation: 70 }, 5).intervention.level).toBe(2);
   });
 
   it('never changes level because of staff load', () => {
@@ -159,11 +165,8 @@ describe('intervention messages', () => {
     expect(cognitive.residentMessage).not.toBe(lonely.residentMessage);
   });
 
-  it('does not quote a Low current score as a sustained pattern in the repeated-high escalation', () => {
-    // Baseline overall is ≈22 (Low); the escalation comes from the recent-hours counter.
-    const msg = evaluate({}, 3).intervention.staffMessage!;
-    expect(msg).not.toMatch(/22%/);
-    expect(msg).toMatch(/High/);
+  it('explains a streak escalation in the staff message', () => {
+    expect(evaluate({ speechDrift: 100 }, 2).intervention.staffMessage).toMatch(/3\+ hours in a row/);
   });
 });
 
@@ -176,8 +179,8 @@ describe('intervention trigger', () => {
     [wear(85, 72), 0, /Level 4: vitals red flag/],
     [{ mobility: 10, restlessness: 60, speechDrift: 100 }, 0, /Level 4: two or more areas are High/],
     [{ speechDrift: 100, ...wear(91, 72) }, 0, /Level 4: .*High and vitals are borderline/],
-    [{}, 3, /Level 4: overall urgency was High in 3\+ recent hours/],
-  ] as [Partial<CurrentState>, number, RegExp][])('names the rule that set the level (%o, recent High %s)', (patch, recent, pattern) => {
+    [{ speechDrift: 100 }, 2, /Level 4: overall urgency has been High for 3\+ hours in a row/],
+  ] as [Partial<CurrentState>, number, RegExp][])('names the rule that set the level (%o, High streak %s)', (patch, recent, pattern) => {
     expect(evaluate(patch, recent).intervention.trigger).toMatch(pattern);
   });
 });

@@ -18,7 +18,7 @@ import './style.css';
 
 // ── State ───────────────────────────────────────────────────
 let state: CurrentState = defaultState();
-let recentHighCount = 0;
+let highStreak = 0;
 let timelineEvents: TimelineEvent[] = [];
 let simSnapshots: SimulationSnapshot[] = [];
 let llmConfig: LLMConfig = loadLLMConfig();
@@ -81,7 +81,7 @@ const wearToggle = document.getElementById('wearToggle') as HTMLInputElement;
 wearToggle.checked = state.useWearables;
 wearToggle.addEventListener('change', () => {
   state.useWearables = wearToggle.checked;
-  recentHighCount = 0;
+  highStreak = 0;
   document.getElementById('vitalsSection')!.classList.toggle('hidden', !state.useWearables);
   update();
 });
@@ -316,7 +316,7 @@ function rerenderMessagePanels() {
 function update() {
   const devs = computeDeviations(DEFAULT_BASELINE, state);
   const risks = computeRisks(state, devs, DEFAULT_BASELINE);
-  const intervention = selectIntervention(state, risks, recentHighCount);
+  const intervention = selectIntervention(state, risks, highStreak);
   const explanation = buildExplanation(state, devs, risks, DEFAULT_BASELINE);
   const overallBand = urgencyBand(risks.overall);
 
@@ -492,7 +492,7 @@ async function runSimulation() {
   btn.textContent = 'Simulating\u2026';
   timelineEvents = [];
   simSnapshots = [];
-  recentHighCount = 0;
+  highStreak = 0;
 
   // Update status chip
   const simChip = document.getElementById('simStatusChip')!;
@@ -513,9 +513,7 @@ async function runSimulation() {
 
     Object.assign(state, snap.state);
     timelineEvents.push(...snap.events);
-    recentHighCount = urgencyBand(snap.risks.overall) === 'High'
-      ? recentHighCount + 1
-      : Math.max(0, recentHighCount - 1);
+    highStreak = urgencyBand(snap.risks.overall) === 'High' ? highStreak + 1 : 0;
 
     syncSlidersFromState();
     update(); // LLM gated out by simRunning flag
@@ -534,7 +532,7 @@ async function runSimulation() {
 
 function resetAll() {
   state = defaultState();
-  recentHighCount = 0;
+  highStreak = 0;
   timelineEvents = [];
   simSnapshots = [];
   lastLLMMessages = null;
@@ -562,7 +560,7 @@ function randomize() {
     state.heartRate = 55 + Math.random() * 75;
     state.spO2 = 88 + Math.random() * 12;
   }
-  recentHighCount = 0;
+  highStreak = 0;
   lastLLMMessages = null;
   prevSignature = '';
   syncSlidersFromState();
@@ -585,7 +583,7 @@ function bindSlider(
   slider.addEventListener('input', () => {
     const v = parseFloat(slider.value);
     setter(v);
-    recentHighCount = 0; // "repeated high" only means something inside a simulated day
+    highStreak = 0; // "repeated high" only means something inside a simulated day
     display.textContent = formatSliderVal(id, v);
     update();
   });
