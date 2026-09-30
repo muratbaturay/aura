@@ -234,91 +234,182 @@
   cursor: pointer;
 }
 
-/* ── KPI / Risk Tile ─────────────────────────────────────── */
+/* ── Status Card & Halo ──────────────────────────────────── */
 
-.risk-card {
-  background: var(--c-bg-raised);
-  border: 1px solid var(--c-border);
-  border-radius: var(--r-lg);
-  padding: var(--sp-4) var(--sp-4) var(--sp-3);
-  text-align: center;
-  box-shadow: var(--shadow-sm);
-  transition: box-shadow var(--dur-normal) var(--ease-out),
-              border-color var(--dur-normal);
+.status-card {
+  --halo-color: var(--c-level-1);
+  --halo-period: 8s;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-8);
+}
+
+@media (max-width: 700px) {
+  .status-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .status-card .halo {
+    align-self: center;
+  }
+}
+
+.halo {
   position: relative;
-  overflow: hidden;
+  width: 220px;
+  height: 220px;
+  flex-shrink: 0;
 }
 
-.risk-card::before {
-  content: '';
+.halo-ring {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--halo-color) var(--ring-mix), transparent);
 }
 
-.band-border-low::before    { background: var(--c-green); }
-.band-border-medium::before { background: var(--c-amber); }
-.band-border-high::before   { background: var(--c-red); }
-
-.risk-card:hover {
-  box-shadow: var(--shadow-md);
+.halo-ring-outer {
+  inset: 0;
+  --ring-mix: 14%;
+  animation: halo-breathe var(--halo-period) ease-in-out infinite;
 }
 
-.risk-card.overall {
-  background: linear-gradient(160deg, var(--c-bg-raised) 60%, var(--c-teal-bg) 100%);
+.halo-ring-mid {
+  inset: 20px;
+  --ring-mix: 22%;
+  animation: halo-breathe var(--halo-period) ease-in-out calc(var(--halo-period) * 0.15) infinite;
 }
 
-.risk-label {
-  font-size: var(--fs-xs);
+.halo-ring-inner {
+  inset: 40px;
+  --ring-mix: 32%;
+}
+
+.halo-core {
+  position: absolute;
+  inset: 56px;
+  border-radius: 50%;
+  background: var(--c-bg-raised);
+  border: 2px solid var(--halo-color);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.halo-score {
+  font-size: 44px;
   font-weight: var(--fw-semibold);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--c-text-muted);
-  margin-bottom: var(--sp-2);
-}
-
-.risk-score {
-  font-size: var(--fs-3xl);
-  font-weight: var(--fw-bold);
   line-height: 1;
-  margin-bottom: var(--sp-2);
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
   color: var(--c-text);
 }
 
-.overall-score {
-  color: var(--c-teal);
+.halo-caption {
+  font-size: var(--fs-xs);
+  color: var(--c-text-muted);
+  margin-top: var(--sp-1);
 }
 
-.risk-band {
-  font-size: 10px;
-  font-weight: var(--fw-bold);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 2px 10px;
-  border-radius: var(--r-full);
-  display: inline-flex;
+@keyframes halo-breathe {
+  0%, 100% { transform: scale(0.97); opacity: 0.75; }
+  50%      { transform: scale(1.03); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .halo-ring { animation: none; }
+}
+
+.status-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+}
+
+.status-level {
+  display: flex;
   align-items: center;
-  gap: 5px;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
 }
 
-.risk-band::before {
-  content: '';
-  display: block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
+.status-pill {
+  background: var(--halo-color);
+  color: var(--c-text);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  padding: 3px 10px;
+  border-radius: var(--r-full);
 }
 
-.band-low            { background: var(--c-green-bg); color: var(--c-green); }
-.band-low::before    { background: var(--c-green); }
-.band-medium         { background: var(--c-amber-bg); color: var(--c-amber); }
-.band-medium::before { background: var(--c-amber); }
-.band-high           { background: var(--c-red-bg); color: var(--c-red); }
-.band-high::before   { background: var(--c-red); }
+.status-card[data-level="4"] .status-pill {
+  color: var(--c-text-inv);
+}
+
+.status-label {
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-semibold);
+  color: var(--c-text);
+}
+
+.domain-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.domain-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  font-size: var(--fs-base);
+}
+
+.domain-name {
+  flex: 1;
+  font-weight: var(--fw-semibold);
+  color: var(--c-text);
+}
+
+.domain-band {
+  font-size: var(--fs-xs);
+  color: var(--c-text-muted);
+}
+
+.domain-value {
+  width: 28px;
+  text-align: right;
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.domain-track {
+  position: relative;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: var(--r-full);
+  background: var(--c-bg-inset);
+}
+
+.domain-fill {
+  height: 100%;
+  border-radius: var(--r-full);
+  transition: width var(--dur-slow) var(--ease-out);
+}
+
+.domain-fill[data-band="Low"]    { background: var(--c-level-1); }
+.domain-fill[data-band="Medium"] { background: var(--c-level-2); }
+.domain-fill[data-band="High"]   { background: var(--c-level-3); }
+
+.band-tick {
+  position: absolute;
+  top: -3px;
+  width: 1px;
+  height: 14px;
+  background: #CBD5E1;
+}
 
 /* ── Status Chip ─────────────────────────────────────────── */
 

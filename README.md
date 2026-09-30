@@ -14,7 +14,8 @@ A browser-based simulator that models an ambient AI system for assisted-living e
   4. Escalate (urgent staff notification) — red vitals (SpO2 < 90%, HR > 120), two High domains, a High domain with amber vitals, or overall High for 3+ hours in a row during a simulation (ends as soon as urgency drops out of High)
 
   Staff load never changes the level; when it is high it adds a prioritization note to the staff message.
-- **Explainability Panel** — States the ladder rule that set the level, then attributes the Overall score to the signals behind it (exact additive contributions from the scoring model, in points that sum to the score), with a natural-language summary built from the same numbers.
+- **Status Halo** — The overall score sits inside a halo coloured by the current intervention level; it breathes slower when calm and faster as the ladder climbs (8 s → 2.4 s per breath; no motion when the viewer prefers reduced motion). Beside it, the three domain scores with their Medium/High thresholds.
+- **Explainability Panel** — States the ladder rule that set the level, then draws the Overall score as one bar split into its contributing signals (exact additive contributions from the scoring model, so the segments add up to the score), with a legend, the 40/70 thresholds and a natural-language summary built from the same numbers.
 - **24-Hour Simulation** — Animated walk-through of a full day with random drift, night patterns, and event generation. Every run is seeded: the seed is shown after a random day, and typing it back in replays that day exactly.
 - **Scenario Presets** — Scripted one-day stories for demos, each walking the intervention ladder along a different path: *Sundowning evening* (cognitive → Level 4 at night), *UTI onset* (confusion + rising heart rate → Level 4, then recovery), *Withdrawn day* (loneliness, gentle prompts only) and *Restless night* (fall risk → Level 4 in the small hours). Each has a fixed seed so the demo plays the same way every time; stories play at 0.5 s per hour.
 - **Optional LLM Messaging** — Toggle on adaptive, AI-generated resident and staff messages via any OpenAI-compatible API (OpenAI, Ollama, LM Studio). Falls back to deterministic templates when disabled.
@@ -70,6 +71,7 @@ src/
 ├── rng.ts                  # Seeded PRNG and seed parsing
 ├── escalation.test.ts      # Vitest coverage for scoring and the intervention ladder
 ├── chart.ts                # SVG chart renderers (comparison + timeline)
+├── view.ts                 # View models: halo per level, explanation score-bar segments
 ├── engine/
 │   └── llmMessaging.ts     # LLM controller (debounce, abort, OpenAI client)
 ├── style.css               # Page layout (imports tokens + components)

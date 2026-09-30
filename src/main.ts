@@ -10,6 +10,7 @@ import { selectIntervention } from './intervention';
 import { simulate24h, startStateFor } from './simulation';
 import { createRng, randomSeed, parseSeed } from './rng';
 import { SCENARIOS } from './scenarios';
+import { haloView, scoreBarSegments } from './view';
 import { renderComparisonChart, renderTimelineChart } from './chart';
 import {
   loadLLMConfig, saveLLMConfig, isLLMAvailable,
@@ -327,18 +328,13 @@ function update() {
   const risks = computeRisks(state, devs, DEFAULT_BASELINE);
   const intervention = selectIntervention(state, risks, highStreak);
   const explanation = buildExplanation(state, devs, risks, DEFAULT_BASELINE);
-  const overallBand = urgencyBand(risks.overall);
 
   // Cache for LLM panel re-renders
   lastIntervention = intervention;
   lastExplanation = explanation;
   lastRisks = risks;
 
-  // Risk cards
-  setRiskCard('fallRisk', 'Fall Risk', risks.fall);
-  setRiskCard('cogRisk', 'Cognitive Concern', risks.cognitive);
-  setRiskCard('loneRisk', 'Loneliness Risk', risks.loneliness);
-  setOverallCard(risks.overall, overallBand);
+  renderStatus(risks, intervention);
 
   // Determine message source and content
   const source: MessageSource = (lastLLMMessages && isLLMAvailable(llmConfig)) ? 'llm' : 'template';
@@ -414,19 +410,24 @@ function renderExplanation(
   intervention: EnrichedInterventionOutput,
 ) {
   const expEl = document.getElementById('explanationContent')!;
-  // Bar length = points on the 0–100 score scale
-  const factorsHTML = explanation.topFactors.map(f =>
-    `<div class="factor-row">
-      <span class="factor-name">${escapeHtml(f.factor)}</span>
-      <div class="factor-bar-bg"><div class="factor-bar" style="width:${Math.min(100, f.points)}%"></div></div>
-      <span class="factor-val">+${Math.round(f.points)}</span>
-    </div>`
-  ).join('');
-  const shownPoints = explanation.topFactors.reduce((sum, f) => sum + f.points, 0);
-  const totalPoints = explanation.factors.reduce((sum, f) => sum + f.points, 0);
-  const summaryHTML = explanation.factors.length > 0
-    ? `<p class="factors-summary">Top ${explanation.topFactors.length} of ${explanation.factors.length} factors · ${Math.round(shownPoints)} of ${Math.round(totalPoints)} points</p>`
-    : '';
+  const segments = scoreBarSegments(explanation.factors);
+  const overall = Math.round(explanation.factors.reduce((sum, f) => sum + f.points, 0));
+  const barLabel = `Overall ${overall} of 100: ` +
+    segments.map(s => `${s.label} ${Math.round(s.points)}`).join(', ');
+  const barHTML = `
+    <div class="score-bar" role="img" aria-label="${escapeHtml(barLabel)}">
+      ${segments.map(s => `<div class="score-seg shade-${s.shade}" style="width:${s.widthPct}%"></div>`).join('')}
+      <span class="score-mark" style="left:40%"></span>
+      <span class="score-mark high" style="left:70%"></span>
+    </div>
+    <div class="score-scale" aria-hidden="true">
+      <span class="scale-start">0</span><span style="left:40%">40</span><span class="scale-high" style="left:70%">High 70</span><span class="scale-end">100</span>
+    </div>`;
+  const legendHTML = `
+    <ul class="score-legend">
+      ${segments.map(s => `<li><span class="legend-swatch shade-${s.shade}"></span><span class="legend-name">${escapeHtml(s.label)}</span><span class="legend-val">+${Math.round(s.points)}</span></li>`).join('')}
+      <li class="legend-total"><span class="legend-name">Overall</span><span class="legend-val">${overall}</span></li>
+    </ul>`;
 
   const narrativeText = intervention.llmExplanation ?? explanation.narrative;
   const narrativeSource = intervention.llmExplanation
@@ -435,8 +436,8 @@ function renderExplanation(
 
   expEl.innerHTML = `
     <p class="decision-trigger">${escapeHtml(intervention.trigger)}</p>
-    <div class="factors">${factorsHTML}</div>
-    ${summaryHTML}
+    ${barHTML}
+    ${legendHTML}
     <div class="narrative-wrapper">
       ${narrativeSource}
       <p class="narrative">${escapeHtml(narrativeText)}</p>
@@ -456,25 +457,28 @@ function renderLLMErrorState(msg: string) {
   }
 }
 
-function setRiskCard(id: string, label: string, score: number) {
-  const band = urgencyBand(score);
-  const el = document.getElementById(id)!;
-  el.innerHTML = `
-    <div class="risk-label">${label}</div>
-    <div class="risk-score">${Math.round(score)}</div>
-    <div class="risk-band band-${band.toLowerCase()}">${band}</div>
-  `;
-  el.className = `risk-card band-border-${band.toLowerCase()}`;
-}
+/** Update the status card in place (re-rendering would restart the halo's breathing). */
+function renderStatus(risks: RiskScores, intervention: InterventionOutput) {
+  const card = document.getElementById('statusCard')!;
+  const halo = haloView(intervention.level);
+  card.dataset.level = String(intervention.level);
+  card.style.setProperty('--halo-color', `var(${halo.colorVar})`);
+  card.style.setProperty('--halo-period', `${halo.periodSec}s`);
 
-function setOverallCard(score: number, band: string) {
-  const el = document.getElementById('overallRisk')!;
-  el.innerHTML = `
-    <div class="risk-label">Overall Urgency</div>
-    <div class="risk-score overall-score">${Math.round(score)}</div>
-    <div class="risk-band band-${band.toLowerCase()}">${band}</div>
-  `;
-  el.className = `risk-card overall band-border-${band.toLowerCase()}`;
+  document.getElementById('haloScore')!.textContent = String(Math.round(risks.overall));
+  document.getElementById('statusPill')!.textContent =
+    `Level ${intervention.level} · ${urgencyBand(risks.overall)}`;
+  document.getElementById('statusLabel')!.textContent = intervention.levelLabel;
+
+  const domains: [string, number][] = [['fall', risks.fall], ['cognitive', risks.cognitive], ['loneliness', risks.loneliness]];
+  for (const [id, score] of domains) {
+    const band = urgencyBand(score);
+    const fill = document.getElementById(`${id}Fill`)!;
+    fill.style.width = `${Math.min(100, score)}%`;
+    fill.dataset.band = band;
+    document.getElementById(`${id}Band`)!.textContent = band;
+    document.getElementById(`${id}Value`)!.textContent = String(Math.round(score));
+  }
 }
 
 function renderEventFeed() {
@@ -821,12 +825,37 @@ function buildHTML(): string {
 
   <!-- RIGHT COLUMN: Outputs -->
   <section class="output-panel">
-    <div class="risk-grid">
-      <div id="fallRisk" class="risk-card"></div>
-      <div id="cogRisk" class="risk-card"></div>
-      <div id="loneRisk" class="risk-card"></div>
-      <div id="overallRisk" class="risk-card overall"></div>
-    </div>
+    <section id="statusCard" class="card status-card" aria-label="Current state">
+      <div class="halo">
+        <div class="halo-ring halo-ring-outer" aria-hidden="true"></div>
+        <div class="halo-ring halo-ring-mid" aria-hidden="true"></div>
+        <div class="halo-ring halo-ring-inner" aria-hidden="true"></div>
+        <div class="halo-core">
+          <span id="haloScore" class="halo-score"></span>
+          <span class="halo-caption">Overall urgency</span>
+        </div>
+      </div>
+      <div class="status-body">
+        <div class="status-level">
+          <span id="statusPill" class="status-pill"></span>
+          <span id="statusLabel" class="status-label"></span>
+        </div>
+        <div class="domain-list">
+          <div class="domain-row">
+            <div class="domain-head"><span class="domain-name">Fall risk</span><span id="fallBand" class="domain-band"></span><span id="fallValue" class="domain-value"></span></div>
+            <div class="domain-track"><div id="fallFill" class="domain-fill"></div><span class="band-tick" style="left:40%"></span><span class="band-tick" style="left:70%"></span></div>
+          </div>
+          <div class="domain-row">
+            <div class="domain-head"><span class="domain-name">Cognitive concern</span><span id="cognitiveBand" class="domain-band"></span><span id="cognitiveValue" class="domain-value"></span></div>
+            <div class="domain-track"><div id="cognitiveFill" class="domain-fill"></div><span class="band-tick" style="left:40%"></span><span class="band-tick" style="left:70%"></span></div>
+          </div>
+          <div class="domain-row">
+            <div class="domain-head"><span class="domain-name">Loneliness</span><span id="lonelinessBand" class="domain-band"></span><span id="lonelinessValue" class="domain-value"></span></div>
+            <div class="domain-track"><div id="lonelinessFill" class="domain-fill"></div><span class="band-tick" style="left:40%"></span><span class="band-tick" style="left:70%"></span></div>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <div class="card">
       <h3 class="card-title">Intervention Output</h3>

@@ -40,6 +40,19 @@
   --c-red-light:    #FECACA;
   --c-red-bg:       #FEF2F2;
 
+  /* Intervention levels: each step darker than the last, so they read without hue */
+  --c-level-1:      #C9DCE3;   /* Ambient cue */
+  --c-level-2:      #E8B96A;   /* Gentle prompt */
+  --c-level-3:      #D9763F;   /* Staff soft alert */
+  --c-level-4:      #9E2B25;   /* Escalate */
+
+  /* Explanation score bar: largest contributor darkest */
+  --c-shade-1:      #334155;
+  --c-shade-2:      #64748B;
+  --c-shade-3:      #94A3B8;
+  --c-shade-4:      #B8C2CF;
+  --c-shade-5:      #D5DCE5;
+
   /* ── Typography ───────────────────────────────────────── */
   --ff-base:        'DM Sans', system-ui, -apple-system, sans-serif;
   --fw-regular:     400;
