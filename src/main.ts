@@ -15,6 +15,7 @@ import { themeFor, partOfDay } from './theme';
 import { createPlayback, type Playback } from './playback';
 import { levelChapters, chaptersView, type Chapter } from './chapters';
 import { setupRing, updateRing } from './ui/ring';
+import { ackReducer, formatElapsed, type AckState, type AckEvent } from './ack';
 import { buildHTML } from './ui/template';
 import { createDrawer } from './ui/drawer';
 import { icons } from './ui/icons';
@@ -37,6 +38,8 @@ let simRunning = false;
 let playback: Playback | null = null;         // the current run's player (null in manual mode)
 let runSnapshots: SimulationSnapshot[] = [];  // all 24 hours of the current run
 let runChapters: Chapter[] = [];              // story beats (or level changes) for the current run
+let ack: AckState = { status: 'none' };       // staff acknowledgement of the current alert
+let ackTicker: ReturnType<typeof setInterval> | null = null;
 let lastRun: { seed: number; start: CurrentState } | null = null; // for exact random-day replay
 let currentRun: { name: string; seed: number } | null = null; // shown in the header chip
 let selectedScenarioId = '';   // '' = random day
@@ -122,6 +125,7 @@ document.getElementById('btnStudioClose')!.addEventListener('click', () => studi
 setupScenarioUI();
 setupPlaybackBar();
 setupRing(document.getElementById('ringCard')!);
+document.getElementById('btnAck')!.addEventListener('click', () => dispatchAck({ type: 'acknowledge', now: Date.now() }));
 
 // ── LLM Config UI Binding ───────────────────────────────────
 setupLLMConfigUI();
@@ -359,6 +363,7 @@ function update() {
   renderHeader();
   renderStatus(risks, intervention);
   renderDay(intervention.level);
+  dispatchAck({ type: 'level', level: intervention.level, now: Date.now() });
 
   // Determine message source and content
   const source: MessageSource = (lastLLMMessages && isLLMAvailable(llmConfig)) ? 'llm' : 'template';
@@ -393,40 +398,59 @@ function update() {
 }
 
 function renderIntervention(intervention: EnrichedInterventionOutput) {
-  const intEl = document.getElementById('interventionContent')!;
+  document.getElementById('doingSource')!.innerHTML =
+    (intervention.source === 'llm'
+      ? '<span class="source-badge llm-badge">AI-Generated</span>'
+      : '<span class="source-badge template-badge">Template</span>') +
+    (llm.status() === 'generating' ? '<span class="llm-loading-dot" aria-label="Generating"></span>' : '');
 
-  const sourceBadge = intervention.source === 'llm'
-    ? '<span class="source-badge llm-badge">AI-Generated</span>'
-    : '<span class="source-badge template-badge">Template</span>';
+  const time = formatSliderVal('time', state.timeOfDay);
+  const row = (icon: string, label: string, body: string) => `
+    <div class="doing-row">
+      <span class="doing-icon">${icon}</span>
+      <div class="doing-body"><span class="doing-label">${label}</span>${body}</div>
+    </div>`;
+  const rows = [];
+  if (intervention.residentMessage) {
+    rows.push(row(icons.speaker, 'Said to Eleanor', `<p class="doing-quote">“${escapeHtml(intervention.residentMessage)}”</p>`));
+  }
+  if (intervention.staffMessage) {
+    const label = intervention.level === 4 ? `Priority to staff · ${time}` : `Sent to staff · ${time}`;
+    rows.push(row(icons.bell, label, `<p class="doing-text">${escapeHtml(intervention.staffMessage)}</p>`));
+  }
+  rows.push(row(icons.lamp, 'Room', `<p class="doing-text">${escapeHtml(intervention.environmentalCue)}</p>`));
+  document.getElementById('interventionContent')!.innerHTML = rows.join('');
+}
 
-  const isGenerating = llm.status() === 'generating';
-  const loadingIndicator = isGenerating
-    ? '<span class="llm-loading-dot"></span>'
-    : '';
+function dispatchAck(event: AckEvent) {
+  ack = ackReducer(ack, event);
+  renderAck();
+}
 
-  // Step indicator: 4 pills showing level progression
-  const steps = [1, 2, 3, 4].map(i => {
-    let cls = 'int-step';
-    if (i <= intervention.level) {
-      cls += ' filled';
-      if (i >= 3) cls += ' warn';
-      if (i >= 4) cls += ' danger';
-    }
-    return `<div class="${cls}"></div>`;
-  }).join('');
-
-  intEl.innerHTML = `
-    <div class="int-level level-${intervention.level}">
-      <span class="level-badge">Level ${intervention.level}</span>
-      <div class="int-steps">${steps}</div>
-      <span class="level-label">${intervention.levelLabel}</span>
-      ${sourceBadge}
-      ${loadingIndicator}
-    </div>
-    ${intervention.residentMessage ? `<div class="int-msg resident"><span class="msg-tag">To Resident</span><p>${escapeHtml(intervention.residentMessage)}</p></div>` : ''}
-    ${intervention.staffMessage ? `<div class="int-msg staff"><span class="msg-tag">To Staff</span><p>${escapeHtml(intervention.staffMessage)}</p></div>` : ''}
-    <div class="int-env"><span class="msg-tag">Environment</span><p>${intervention.environmentalCue}</p></div>
-  `;
+/** The acknowledgement row, updated in place; a 1 s ticker runs only while pending. */
+function renderAck() {
+  const row = document.getElementById('ackRow')!;
+  row.hidden = ack.status === 'none';
+  row.dataset.status = ack.status;
+  const btn = document.getElementById('btnAck')!;
+  const text = document.getElementById('ackText')!;
+  const timer = document.getElementById('ackTimer')!;
+  if (ack.status === 'pending') {
+    const since = ack.since;
+    text.textContent = 'Waiting for staff to acknowledge';
+    timer.textContent = formatElapsed(Date.now() - since);
+    btn.hidden = false;
+    if (!ackTicker) ackTicker = setInterval(() => {
+      if (ack.status === 'pending') timer.textContent = formatElapsed(Date.now() - ack.since);
+    }, 1000);
+    return;
+  }
+  if (ackTicker) { clearInterval(ackTicker); ackTicker = null; }
+  btn.hidden = true;
+  if (ack.status === 'acknowledged') {
+    text.textContent = 'Acknowledged after';
+    timer.textContent = formatElapsed(ack.at - ack.since);
+  }
 }
 
 function renderExplanation(
@@ -621,6 +645,8 @@ function runSimulation() {
   playback?.stop();
   currentRun = { name: scenario?.name ?? 'Random day', seed };
 
+  dispatchAck({ type: 'reset' });
+
   // No LLM calls from here until the run reaches its last hour
   simRunning = true;
   stopLLMWork();
@@ -760,6 +786,7 @@ function renderPlaybackBar() {
 
 function resetAll() {
   leaveRun();
+  dispatchAck({ type: 'reset' });
   state = defaultState();
   highStreak = 0;
   timelineEvents = [];

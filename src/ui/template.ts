@@ -99,9 +99,18 @@ export function buildHTML(): string {
       <h3 class="card-title">Why this decision</h3>
       <div id="explanationContent"></div>
     </section>
-    <section class="card">
-      <h3 class="card-title">What AURA is doing</h3>
-      <div id="interventionContent"></div>
+    <section class="card doing-card" aria-labelledby="doingTitle">
+      <div class="doing-head">
+        <h3 id="doingTitle" class="card-title">What AURA is doing</h3>
+        <span id="doingSource"></span>
+      </div>
+      <div id="interventionContent" class="doing-list"></div>
+      <div id="ackRow" class="ack-row" hidden>
+        <span id="ackDot" class="ack-dot" aria-hidden="true"></span>
+        <span id="ackText" class="ack-text" role="status"></span>
+        <span id="ackTimer" class="ack-timer mono"></span>
+        <button type="button" id="btnAck" class="btn btn-primary btn-sm">Acknowledge</button>
+      </div>
     </section>
   </div>
 </main>

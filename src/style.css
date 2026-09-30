@@ -394,6 +394,118 @@ body {
   font-weight: var(--fw-semibold);
 }
 
+/* ── What AURA is doing ──────────────────────────────────── */
+
+.doing-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.doing-head #doingSource {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.doing-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.doing-row {
+  display: flex;
+  gap: 14px;
+}
+
+.doing-icon {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--c-bg-inset);
+  color: var(--c-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.doing-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.doing-label {
+  font-size: 12px;
+  color: var(--c-text-dim);
+}
+
+.doing-quote {
+  margin: 0;
+  font-family: var(--ff-display);
+  font-style: italic;
+  font-size: 17px;
+  line-height: 1.4;
+  color: var(--c-text);
+}
+
+.doing-text {
+  margin: 0;
+  font-size: var(--fs-base);
+  line-height: 1.45;
+  color: var(--c-text);
+}
+
+.ack-row {
+  margin-top: var(--sp-5);
+  padding: 10px 10px 10px 14px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--c-border);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.ack-dot {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--c-level-4);
+}
+
+.ack-row[data-status="pending"] .ack-dot {
+  animation: chip-pulse 1.6s ease-in-out infinite;
+}
+
+.ack-row[data-status="acknowledged"] .ack-dot {
+  background: var(--c-green);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ack-row .ack-dot, .story-chip.is-running .story-dot { animation: none; }
+}
+
+.ack-text {
+  flex: 1;
+  font-size: var(--fs-base);
+}
+
+.ack-timer {
+  font-size: var(--fs-base);
+  color: var(--c-text-muted);
+}
+
+#btnAck {
+  flex-basis: 100%;
+  min-height: 44px;
+}
+
 /* ── Playback ────────────────────────────────────────────── */
 
 .playback-bar {
