@@ -221,7 +221,6 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;   /* content sits in the middle of the stretched card */
   gap: 20px;
 }
 
