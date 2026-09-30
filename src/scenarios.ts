@@ -1,3 +1,5 @@
+import type { Chapter } from './chapters';
+
 export type ScenarioSignal = 'mobility' | 'restlessness' | 'speechDrift' | 'socialIsolation' | 'heartRate' | 'spO2';
 
 /** [hour, value] pairs, hours ascending. */
@@ -10,6 +12,7 @@ export interface Scenario {
   seed: number;
   useWearables: boolean;
   keyframes: Partial<Record<ScenarioSignal, Keyframes>>;
+  chapters: Chapter[];      // story beats shown under the playback bar
 }
 
 /** Linear interpolation; holds the first/last value outside the keyframe range. */
@@ -32,6 +35,7 @@ export const SCENARIOS: Scenario[] = [
     description: 'Calm day; confusion and restlessness build from late afternoon into the night.',
     seed: 1701,
     useWearables: false,
+    chapters: [{ hour: 0, title: 'Calm day' }, { hour: 17, title: 'Confusion builds' }, { hour: 19, title: 'Staff check-in' }, { hour: 21, title: 'Escalation' }],
     keyframes: {
       speechDrift: [[14, 20], [17, 55], [20, 85], [23, 85]],
       restlessness: [[0, 15], [6, 15], [8, 25], [14, 25], [18, 45], [21, 65], [23, 75]],
@@ -44,6 +48,7 @@ export const SCENARIOS: Scenario[] = [
     description: 'Sudden overnight confusion with a rising heart rate; staff respond and she recovers by evening.',
     seed: 2402,
     useWearables: true,
+    chapters: [{ hour: 1, title: 'Confusion begins' }, { hour: 2, title: 'Bed exits' }, { hour: 4, title: 'Escalated' }, { hour: 14, title: 'Recovering' }],
     keyframes: {
       speechDrift: [[0, 22], [2, 45], [5, 72], [7, 85], [11, 85], [17, 45], [21, 28], [23, 25]],
       restlessness: [[0, 30], [2, 60], [4, 72], [8, 50], [14, 32], [20, 22], [22, 15]],
@@ -57,6 +62,7 @@ export const SCENARIOS: Scenario[] = [
     description: 'Isolation creeps up and movement drops; gentle prompts all day, no staff alerts.',
     seed: 3103,
     useWearables: false,
+    chapters: [{ hour: 0, title: 'Quiet night' }, { hour: 7, title: 'Normal morning' }, { hour: 10, title: 'Gentle prompts' }, { hour: 17, title: 'Evening alone' }],
     keyframes: {
       socialIsolation: [[7, 25], [11, 58], [17, 66], [23, 66]],
       mobility: [[0, 72], [7, 68], [13, 50], [23, 50]],
@@ -69,6 +75,7 @@ export const SCENARIOS: Scenario[] = [
     description: 'Repeated bed exits and unsteady movement in the small hours; a tired but calm day.',
     seed: 4204,
     useWearables: false,
+    chapters: [{ hour: 0, title: 'Bed exits begin' }, { hour: 3, title: 'Escalated' }, { hour: 6, title: 'Settling' }, { hour: 9, title: 'Tired but calm' }],
     keyframes: {
       restlessness: [[0, 55], [1, 75], [4, 85], [6, 45], [9, 30], [20, 25], [22, 15]],
       mobility: [[0, 60], [2, 38], [4, 35], [7, 55], [12, 62], [20, 68], [23, 70]],

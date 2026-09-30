@@ -44,6 +44,11 @@ body {
   width: 100%;
 }
 
+/* `hidden` always wins over component display rules */
+[hidden] {
+  display: none !important;
+}
+
 /* ── Header ──────────────────────────────────────────────── */
 
 .app-header {
@@ -254,6 +259,141 @@ body {
   border-radius: 3px;
 }
 
+/* ── 24-hour ring ────────────────────────────────────────── */
+
+.ring-wrap {
+  display: flex;
+  justify-content: center;
+  padding: var(--sp-3) 0;
+}
+
+.ring {
+  position: relative;
+  width: min(440px, 100%);
+  aspect-ratio: 1;
+}
+
+.ring > div {
+  position: absolute;
+  border-radius: 50%;
+}
+
+.ring-night { inset: 0; }
+.ring-mask  { inset: 1.5%; background: var(--c-bg-raised); }
+.ring-hours { inset: 4.2%; }
+.ring-disc {
+  inset: 17.8%;
+  background: var(--c-bg-raised);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+}
+
+.ring-kicker {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--c-text-dim);
+}
+
+.ring-time {
+  font-family: var(--ff-display);
+  font-size: clamp(36px, 5vw, 56px);
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.ring-since {
+  font-size: var(--fs-base);
+  color: var(--c-text-muted);
+}
+
+.ring-next {
+  font-size: 12px;
+  color: var(--c-text-dim);
+}
+
+.ring-dot {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: var(--c-bg-raised);
+  border: 3px solid var(--c-text);
+  transform: translate(-50%, -50%);
+}
+
+.ring-label {
+  position: absolute;
+  font-size: var(--fs-xs);
+  color: var(--c-text-dim);
+  transform: translate(-50%, -50%);
+  background: var(--c-bg-raised);
+  padding: 0 2px;
+}
+
+/* ── Chapters ────────────────────────────────────────────── */
+
+.chapters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sp-2);
+  margin-top: var(--sp-4);
+}
+
+.chapters[hidden] {
+  display: none;
+}
+
+@media (max-width: 560px) {
+  .chapters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.chapter {
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: var(--r-lg);
+  border: 1px dashed var(--c-border);
+  background: transparent;
+  color: var(--c-text-muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.chapter[data-status="past"] {
+  border: 1px solid transparent;
+  background: var(--c-bg-inset);
+  color: var(--c-text);
+}
+
+.chapter[data-status="now"] {
+  border: 1.5px solid var(--c-text);
+  background: var(--c-bg-raised);
+  color: var(--c-text);
+}
+
+.chapter:hover {
+  border-color: var(--c-text-dim);
+}
+
+.chapter-time {
+  font-size: var(--fs-xs);
+  color: var(--c-text-dim);
+}
+
+.chapter-title {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+
 /* ── Playback ────────────────────────────────────────────── */
 
 .playback-bar {
@@ -322,6 +462,11 @@ body {
   background: rgba(20, 17, 13, 0.28);
   opacity: 0;
   transition: opacity var(--dur-slow) ease;
+}
+
+.studio[hidden],
+.studio-backdrop[hidden] {
+  display: none;
 }
 
 .studio-backdrop.is-open {

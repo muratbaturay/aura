@@ -7,7 +7,7 @@ import { simulate24h, startStateFor } from './simulation';
 import { valueAt, type Scenario } from './scenarios';
 
 const TEST_SCENARIO: Scenario = {
-  id: 'test', name: 'Test', description: '', seed: 1, useWearables: true,
+  id: 'test', name: 'Test', description: '', seed: 1, useWearables: true, chapters: [],
   keyframes: { speechDrift: [[0, 20], [12, 80]], heartRate: [[0, 70], [23, 115]] },
 };
 const run = (seed: number, scenario?: Scenario, initial = defaultState()) =>

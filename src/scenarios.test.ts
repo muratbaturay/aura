@@ -30,6 +30,16 @@ describe('scenario stories', () => {
     });
   }
 
+  it('gives every story 2–4 chapters in hour order within the day', () => {
+    for (const sc of SCENARIOS) {
+      const hours = sc.chapters.map(c => c.hour);
+      expect(hours.length, sc.id).toBeGreaterThanOrEqual(2);
+      expect(hours.length, sc.id).toBeLessThanOrEqual(4);
+      expect(hours, sc.id).toEqual([...hours].sort((a, b) => a - b));
+      for (const h of hours) expect(h >= 0 && h <= 23, `${sc.id} ${h}`).toBe(true);
+    }
+  });
+
   it('turns wearables on only for the UTI story', () => {
     expect(SCENARIOS.filter(s => s.useWearables).map(s => s.id)).toEqual(['uti']);
   });

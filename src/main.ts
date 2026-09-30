@@ -2,7 +2,7 @@ import type {
   CurrentState, TimelineEvent, SimulationSnapshot,
   LLMGeneratedMessages, LLMConfig, LLMMessageContext, ResidentProfile,
   EnrichedInterventionOutput, MessageSource, InterventionOutput,
-  RiskScores, ExplanationOutput,
+  RiskScores, ExplanationOutput, InterventionLevel,
 } from './types';
 import { DEFAULT_BASELINE, defaultState, computeDeviations } from './baseline';
 import { computeRisks, urgencyBand, buildExplanation } from './risk';
@@ -13,6 +13,8 @@ import { SCENARIOS } from './scenarios';
 import { haloView, scoreBarSegments } from './view';
 import { themeFor, partOfDay } from './theme';
 import { createPlayback, type Playback } from './playback';
+import { levelChapters, chaptersView, type Chapter } from './chapters';
+import { setupRing, updateRing } from './ui/ring';
 import { buildHTML } from './ui/template';
 import { createDrawer } from './ui/drawer';
 import { icons } from './ui/icons';
@@ -34,6 +36,7 @@ let lastLLMMessages: LLMGeneratedMessages | null = null;
 let simRunning = false;
 let playback: Playback | null = null;         // the current run's player (null in manual mode)
 let runSnapshots: SimulationSnapshot[] = [];  // all 24 hours of the current run
+let runChapters: Chapter[] = [];              // story beats (or level changes) for the current run
 let lastRun: { seed: number; start: CurrentState } | null = null; // for exact random-day replay
 let currentRun: { name: string; seed: number } | null = null; // shown in the header chip
 let selectedScenarioId = '';   // '' = random day
@@ -118,6 +121,7 @@ document.getElementById('btnStudio')!.addEventListener('click', () => studio.ope
 document.getElementById('btnStudioClose')!.addEventListener('click', () => studio.close());
 setupScenarioUI();
 setupPlaybackBar();
+setupRing(document.getElementById('ringCard')!);
 
 // ── LLM Config UI Binding ───────────────────────────────────
 setupLLMConfigUI();
@@ -354,6 +358,7 @@ function update() {
 
   renderHeader();
   renderStatus(risks, intervention);
+  renderDay(intervention.level);
 
   // Determine message source and content
   const source: MessageSource = (lastLLMMessages && isLLMAvailable(llmConfig)) ? 'llm' : 'template';
@@ -625,6 +630,8 @@ function runSimulation() {
   const start = startStateFor(seed, state, lastRun);
   lastRun = { seed, start: { ...start } };
   runSnapshots = simulate24h(DEFAULT_BASELINE, start, { rng: createRng(seed), scenario });
+  runChapters = scenario?.chapters ?? levelChapters(runSnapshots.map(sn => sn.intervention.level));
+  buildChapters();
 
   setRunning(true, 'Playing');
   playback = createPlayback({
@@ -666,11 +673,54 @@ function leaveRun() {
   timelineEvents = [];
   currentRun = null;
   simRunning = false;
+  runChapters = [];
+  buildChapters();
   setRunning(false, '');
   renderPlaybackBar();
 }
 
+/** The ring shows the run so far, or just the current hour in manual mode. */
+function renderDay(level: InterventionLevel) {
+  const levels: (InterventionLevel | null)[] = Array(24).fill(null);
+  let since: number | null = null;
+  if (playback && simSnapshots.length > 0) {
+    for (const sn of simSnapshots) levels[sn.hour] = sn.intervention.level;
+    let h = simSnapshots.length - 1;
+    while (h > 0 && simSnapshots[h - 1].intervention.level === level) h--;
+    since = simSnapshots[h].hour;
+  } else {
+    levels[Math.floor(state.timeOfDay) % 24] = level;
+  }
+  updateRing(levels, state.timeOfDay % 24, level, since);
+  updateChapters();
+}
+
+function buildChapters() {
+  const el = document.getElementById('chapters')!;
+  el.hidden = runChapters.length === 0;
+  el.innerHTML = runChapters.map(c => `
+    <button type="button" class="chapter" data-hour="${c.hour}">
+      <span class="chapter-time mono">${String(c.hour).padStart(2, '0')}:00</span>
+      <span class="chapter-title">${escapeHtml(c.title)}</span>
+    </button>`).join('');
+}
+
+function updateChapters() {
+  if (runChapters.length === 0) return;
+  const views = chaptersView(runChapters, state.timeOfDay);
+  document.querySelectorAll<HTMLButtonElement>('#chapters .chapter').forEach((btn, i) => {
+    const v = views[i];
+    btn.dataset.status = v.status;
+    btn.querySelector('.chapter-time')!.textContent = v.status === 'now' ? `${v.timeLabel} · now` : v.timeLabel;
+    if (v.status === 'now') btn.setAttribute('aria-current', 'step'); else btn.removeAttribute('aria-current');
+  });
+}
+
 function setupPlaybackBar() {
+  document.getElementById('chapters')!.addEventListener('click', e => {
+    const chapter = (e.target as HTMLElement).closest<HTMLButtonElement>('.chapter');
+    if (chapter && playback) playback.seek(Number(chapter.dataset.hour));
+  });
   const bar = document.getElementById('playbackBar')!;
   bar.innerHTML = `
     <button type="button" id="pbPrev" class="pb-btn" aria-label="Previous hour">${icons.prev}</button>

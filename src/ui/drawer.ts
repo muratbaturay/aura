@@ -26,7 +26,11 @@ export function createDrawer(panel: HTMLElement, backdrop: HTMLElement, opener: 
     opener.setAttribute('aria-expanded', 'true');
     document.addEventListener('keydown', onKey);
     // Next frame so the slide-in transition runs from the hidden position
-    requestAnimationFrame(() => { panel.classList.add('is-open'); backdrop.classList.add('is-open'); });
+    requestAnimationFrame(() => {
+      if (!open) return; // closed again before the frame (e.g. Play pressed at once)
+      panel.classList.add('is-open');
+      backdrop.classList.add('is-open');
+    });
     panel.querySelector<HTMLElement>(FOCUSABLE)?.focus();
   }
 
