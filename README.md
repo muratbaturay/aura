@@ -158,14 +158,14 @@ A **Random day** is also available for any resident. It drifts back towards thei
 ## How it works
 
 ```mermaid
-flowchart LR
-    S["Signals<br/><sub>mobility · restlessness · speech drift<br/>isolation · time of day · vitals</sub>"] --> R["Risk now<br/><sub>fall · cognitive · loneliness</sub>"]
-    U["The resident's usual<br/><sub>their own normal at this hour</sub>"] --> C
-    R --> C["Change from usual<br/><sub>per area</sub>"]
-    F["Red flags<br/><sub>vitals · bed exit · unsteady<br/>hours up at night</sub>"] --> L
-    C --> L["Ladder<br/><sub>4 levels</sub>"]
-    L --> E["Explanation<br/><sub>parts add up to the score</sub>"]
-    L --> A["Action<br/><sub>resident · room · staff</sub>"]
+flowchart TD
+    S["Signals each hour<br/>mobility, restlessness, speech drift,<br/>isolation, time of day, vitals"] --> R["Risk now<br/>fall, cognitive, loneliness"]
+    U["The resident's usual<br/>their own normal at this hour"] --> C
+    R --> C["Change from usual<br/>per area"]
+    C --> L["Ladder<br/>four levels"]
+    F["Red flags<br/>vitals, bed exit, unsteady,<br/>hours up at night"] --> L
+    L --> E["Explanation<br/>parts add up to the score"]
+    L --> A["Action<br/>resident, room, staff"]
     A --> K["Staff acknowledge"]
 ```
 
