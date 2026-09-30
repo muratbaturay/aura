@@ -22,7 +22,7 @@ export function selectIntervention(
   scores?: Pick<Assessment, 'standing' | 'usual' | 'fallReference'> // lets staff messages quote risk with its usual
 ): InterventionOutput {
   const night = isNightHour(state.timeOfDay, DEFAULT_BASELINE);
-  const vitals = vitalsFlag(state);
+  const vitals = vitalsFlag(state, resident?.vitals);
   const highDomains = RISK_DOMAINS.filter(d => urgencyBand(risks[d]) === 'High');
   const overallBand = urgencyBand(risks.overall);
   const lower = (d: RiskDomain) => DOMAIN_LABELS[d].toLowerCase();

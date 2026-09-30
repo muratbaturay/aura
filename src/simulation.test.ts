@@ -178,9 +178,9 @@ describe('residents on random days', () => {
   const emptyShare = (r: Resident) => daysFor(r).filter(d => d.every(s => s.events.length === 0)).length / 150;
 
   it('gives Eleanor mostly eventful days, and the others more so', () => {
-    // Eleanor is the healthy one: about a third of her days are quiet, as they should be
-    expect(emptyShare(ELEANOR)).toBeLessThan(0.4);
-    for (const id of ['walter', 'margaret', 'joseph']) expect(emptyShare(residentById(id)), id).toBeLessThan(0.25);
+    // Eleanor and Joseph are stable at their baseline: about a third of their days are quiet
+    for (const id of ['eleanor', 'joseph']) expect(emptyShare(residentById(id)), id).toBeLessThan(0.4);
+    for (const id of ['walter', 'margaret']) expect(emptyShare(residentById(id)), id).toBeLessThan(0.25);
   });
 
   it('does not keep Walter at Level 3+ through most of his nights', () => {
@@ -221,5 +221,23 @@ describe('final review fixes: events', () => {
         if (combined * 1.2 < 40) expect(s.events.some(e => /main driver/i.test(e.detail)), `${s.hour}:00`).toBe(false);
       }
     }
+  });
+});
+
+describe('model refinements in the simulation', () => {
+  it('counts hours up in a row at night and escalates them for Eleanor', () => {
+    const snaps = run(3, { ...TEST_SCENARIO, useWearables: false, keyframes: { restlessness: [[0, 78], [5, 78], [6, 25], [23, 25]] } });
+    expect(snaps.slice(0, 4).map(s => s.hoursUp)).toEqual([1, 2, 3, 4]);
+    expect(snaps[0].intervention.level).toBe(1);
+    expect(snaps[1].intervention.level).toBeGreaterThanOrEqual(2);
+    expect(snaps[3].intervention.level).toBeGreaterThanOrEqual(3);
+    expect(snaps[12].hoursUp).toBe(0);
+  });
+
+  it("keeps Joseph's normal days free of vitals staff alerts", () => {
+    const joseph = residentById('joseph');
+    const hours = Array.from({ length: 120 }, (_, i) => simulate24h(joseph, joseph.usual, { rng: createRng(i + 1) })).flat();
+    const flagged = hours.filter(s => s.events.some(e => e.label === 'Vitals flag')).length / hours.length;
+    expect(flagged).toBeLessThan(0.02);
   });
 });

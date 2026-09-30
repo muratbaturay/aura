@@ -143,11 +143,11 @@ describe('day log', () => {
     await loadApp();
     playStory('restless-night');
     await vi.advanceTimersByTimeAsync(120 * 24 + 50);   // run complete
-    const mark = document.querySelector<HTMLButtonElement>('[data-lane="fall"] .lane-mark[data-hour="4"]');
+    const mark = document.querySelector<HTMLButtonElement>('[data-lane="bed-exit"] .lane-mark[data-hour="4"]');
     expect(mark).not.toBeNull();
     mark!.click();
     expect(el('clockTime').textContent).toBe('04:00');
-    expect(el('logDetail').textContent).toContain('Fall risk elevated');
+    expect(el('logDetail').textContent).toContain('Bed exit detected');
   });
 });
 

@@ -1,6 +1,6 @@
 import type { CurrentState, TimelineEvent, SimulationSnapshot, InterventionOutput, InterventionLevel } from './types';
 import { isNightHour } from './baseline';
-import { urgencyBand, vitalsFlag } from './risk';
+import { timeUp, urgencyBand, vitalsFlag } from './risk';
 import { assess, type Assessment } from './assessment';
 import { SLEEP_RESTLESSNESS, type Resident } from './residents';
 import { selectIntervention } from './intervention';
@@ -49,6 +49,7 @@ export function simulate24h(
   const usual: CurrentState = { ...initialState }; // a random day drifts back toward where it started
   const episode = scenario ? null : drawEpisode(rng);
   let highStreak = 0;
+  let hoursUp = 0;
   let prevLevel: InterventionLevel = 1;
 
   for (let h = 0; h < 24; h++) {
@@ -58,10 +59,11 @@ export function simulate24h(
     if (scenario) applyScenario(state, scenario, h, rng);
     else randomDrift(state, withEpisode(usual, episode, h), usual, night, resident.nightWake, rng);
 
-    const assessment = assess(state, resident);
+    hoursUp = night && timeUp(state, baseline) >= 0.5 ? hoursUp + 1 : 0;
+    const assessment = assess(state, resident, { hoursUp });
     const { standing, alert } = assessment;
     const intervention = selectIntervention(state, alert, highStreak, resident, assessment);
-    const events = generateEvents(h, state, assessment, night, intervention, prevLevel, resident.name);
+    const events = generateEvents(h, state, assessment, night, intervention, prevLevel, resident);
     prevLevel = intervention.level;
 
     snapshots.push({
@@ -69,6 +71,7 @@ export function simulate24h(
       state: { ...state },
       risks: { ...standing },
       alert: { ...alert },
+      hoursUp,
       intervention: { ...intervention },
       events,
       highStreak,
@@ -178,8 +181,9 @@ function generateEvents(
   night: boolean,
   intervention: InterventionOutput,
   prevLevel: InterventionLevel,
-  name: string,
+  resident: Resident,
 ): TimelineEvent[] {
+  const { name } = resident;
   const { standing, usual, alert, combined, fallReference } = assessment;
   const events: TimelineEvent[] = [];
   const h = `${hour.toString().padStart(2, '0')}:00`;
@@ -224,7 +228,7 @@ function generateEvents(
   if (night && state.restlessness > 65 && state.mobility < 45) {
     add('Wandering pattern', bands.cognitive === 'Low' ? 'Medium' : bands.cognitive, `Nighttime movement with reduced stability at ${h}.`);
   }
-  const vitals = vitalsFlag(state);
+  const vitals = vitalsFlag(state, resident.vitals);
   if (vitals !== 'none') {
     add('Vitals flag', vitals === 'red' ? 'High' : 'Medium',
       `SpO2 ${+state.spO2.toFixed(1)}%, HR ${Math.round(state.heartRate)} bpm (${vitals}) at ${h}.`);

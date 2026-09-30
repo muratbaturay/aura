@@ -111,11 +111,21 @@ export function computeRisks(
   return { fall, cognitive, loneliness, overall };
 }
 
+/** Vitals targets from the care plan: amber below/above the first pair, red beyond the second. */
+export interface VitalsTargets {
+  spo2Amber: number;  // amber when SpO2 is below this
+  spo2Red: number;    // red when SpO2 is below this
+  hrAmber: number;    // amber when heart rate is above this
+  hrRed: number;      // red when heart rate is above this
+}
+
+export const DEFAULT_VITALS: VitalsTargets = { spo2Amber: 92, spo2Red: 90, hrAmber: 110, hrRed: 120 };
+
 /** Wearable red flags: red always escalates, amber warrants a staff check. */
-export function vitalsFlag(state: CurrentState): VitalsFlag {
+export function vitalsFlag(state: CurrentState, t: VitalsTargets = DEFAULT_VITALS): VitalsFlag {
   if (!state.useWearables) return 'none';
-  if (state.spO2 < 90 || state.heartRate > 120) return 'red';
-  if (state.spO2 < 92 || state.heartRate > 110) return 'amber';
+  if (state.spO2 < t.spo2Red || state.heartRate > t.hrRed) return 'red';
+  if (state.spO2 < t.spo2Amber || state.heartRate > t.hrAmber) return 'amber';
   return 'none';
 }
 
@@ -138,10 +148,10 @@ const SIGNAL_LABELS: Record<RiskSignal, string> = {
 
 // No live readings in the label: factor names feed the LLM change-detection
 // signature, and the trigger line already shows the values.
-export function vitalsFlagLabel(state: CurrentState, flag: VitalsFlag): string {
+export function vitalsFlagLabel(state: CurrentState, flag: VitalsFlag, t: VitalsTargets = DEFAULT_VITALS): string {
   const parts: string[] = [];
-  if (state.spO2 < 92) parts.push('blood oxygen');
-  if (state.heartRate > 110) parts.push('heart rate');
+  if (state.spO2 < t.spo2Amber) parts.push('blood oxygen');
+  if (state.heartRate > t.hrAmber) parts.push('heart rate');
   return `Vitals ${flag} flag: ${parts.join(' and ')}`;
 }
 

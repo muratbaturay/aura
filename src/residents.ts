@@ -1,5 +1,6 @@
 import type { CurrentState, ResidentBaseline } from './types';
 import { isNightHour } from './baseline';
+import { DEFAULT_VITALS, type VitalsTargets } from './risk';
 
 export interface Resident {
   id: string;
@@ -12,6 +13,7 @@ export interface Resident {
   nightWake: number;         // chance per night hour of getting up, on a random day
   eveningRestlessness: number; // extra usual restlessness 17:00–21:59 (sundowning tendency)
   bedExitAlert: boolean;     // care plan: tell staff whenever she gets up at night
+  vitals: VitalsTargets;     // care plan: her own vitals targets
 }
 
 /** Restlessness while asleep; also the sleep target of a random day. */
@@ -42,25 +44,27 @@ export const RESIDENTS: Resident[] = [
     id: 'eleanor', name: 'Eleanor', age: 82, contact: 'friend Martha',
     summary: 'Independent and steady; sleeps well.',
     usual: { mobility: 70, restlessness: 25, speechDrift: 20, socialIsolation: 30, useWearables: false, heartRate: 72, spO2: 97 },
-    vars: [100, 64, 49, 81], nightWake: 0.08, eveningRestlessness: 0, bedExitAlert: false,
+    vars: [100, 64, 49, 81], nightWake: 0.08, eveningRestlessness: 0, bedExitAlert: false, vitals: DEFAULT_VITALS,
   }),
   resident({
     id: 'walter', name: 'Walter', age: 88, contact: 'daughter Ruth',
     summary: 'Frail and unsteady, history of falls; often up at night.',
     usual: { mobility: 42, restlessness: 35, speechDrift: 22, socialIsolation: 35, useWearables: false, heartRate: 76, spO2: 96 },
-    vars: [121, 81, 49, 81], nightWake: 0.22, eveningRestlessness: 0, bedExitAlert: true,
+    vars: [121, 81, 49, 81], nightWake: 0.22, eveningRestlessness: 0, bedExitAlert: true, vitals: DEFAULT_VITALS,
   }),
   resident({
     id: 'margaret', name: 'Margaret', age: 79, contact: 'son David',
     summary: 'Early dementia; more restless in the evening.',
     usual: { mobility: 62, restlessness: 32, speechDrift: 45, socialIsolation: 30, useWearables: false, heartRate: 74, spO2: 97 },
-    vars: [100, 81, 64, 81], nightWake: 0.16, eveningRestlessness: 10, bedExitAlert: true,
+    vars: [100, 81, 64, 81], nightWake: 0.16, eveningRestlessness: 10, bedExitAlert: true, vitals: DEFAULT_VITALS,
   }),
   resident({
     id: 'joseph', name: 'Joseph', age: 85, contact: 'friend Samuel',
     summary: 'Recently widowed and withdrawn; COPD, wears a monitor.',
     usual: { mobility: 58, restlessness: 20, speechDrift: 18, socialIsolation: 62, useWearables: true, heartRate: 84, spO2: 93 },
     vars: [100, 49, 49, 100], nightWake: 0.08, eveningRestlessness: 0, bedExitAlert: false,
+    // COPD: oxygen targets agreed in his care plan
+    vitals: { spo2Amber: 88, spo2Red: 85, hrAmber: 110, hrRed: 120 },
   }),
 ];
 

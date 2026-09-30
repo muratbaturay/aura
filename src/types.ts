@@ -92,6 +92,7 @@ export interface SimulationSnapshot {
   events: TimelineEvent[];
   highStreak: number;       // consecutive High-overall hours before this one
   alert: RiskScores;        // change from the resident's usual: drives the ladder
+  hoursUp: number;          // consecutive night hours out of bed, including this one
 }
 
 // ── LLM Messaging ───────────────────────────────────────────

@@ -23,16 +23,20 @@ const UNSTEADY_UP_LABEL = 'Up at night, very unsteady';
 
 /** A rise above usual of about 27 points (on a low usual) reads as Medium. */
 const ALERT_GAIN = 1.5;
+/** Never treat less than this as the headroom left: a high usual must not magnify small changes. */
+const MIN_HEADROOM = 50;
+/** Hours in a row out of bed at night: the second raises a prompt, the third a staff check. */
+const HOURS_UP_FLOORS: [number, number][] = [[3, 70], [2, 40]];
 
 const clamp = (v: number) => Math.max(0, Math.min(100, v));
 
 /**
  * Compare her state now with her usual state at the same hour. Each domain's
  * alert is the rise above usual as a share of the headroom left, with a gain
- * (1.5 × 100 × (now − usual) / (100 − usual)); the overall alert combines
+ * (1.5 × 100 × (now − usual) / max(50, 100 − usual)); the overall alert combines
  * domains as the standing score does, with absolute red flags as floors.
  */
-export function assess(state: CurrentState, resident: Resident): Assessment {
+export function assess(state: CurrentState, resident: Resident, context: { hoursUp?: number } = {}): Assessment {
   const { baseline } = resident;
   const devs = computeDeviations(baseline, state);
   const standing = computeRisks(state, devs, baseline);
@@ -55,7 +59,7 @@ export function assess(state: CurrentState, resident: Resident): Assessment {
   const parts = {} as Record<RiskDomain, Map<string, number>>;
   for (const d of RISK_DOMAINS) {
     const excess = standing[d] - usual[d];
-    const headroom = Math.max(1, 100 - usual[d]);
+    const headroom = Math.max(MIN_HEADROOM, 100 - usual[d]);
     parts[d] = new Map();
     if (excess <= 0) continue;
     alert[d] = clamp((ALERT_GAIN * 100 * excess) / headroom);
@@ -70,10 +74,13 @@ export function assess(state: CurrentState, resident: Resident): Assessment {
   // ── Overall: worst + 0.2 × second, then absolute red flags as floors ──
   const [worst, second] = rankDomains(alert);
   const combined = alert[worst] + alert[second] * SECOND_DOMAIN_WEIGHT;
-  const flag = vitalsFlag(state);
+  const flag = vitalsFlag(state, resident.vitals);
   const up = night && timeUp(state, baseline) >= 0.5;
+  const hoursUp = context.hoursUp ?? (up ? 1 : 0);
   const floors: [string, number][] = [];
-  if (flag !== 'none') floors.push([vitalsFlagLabel(state, flag), VITALS_FLOOR[flag]]);
+  if (flag !== 'none') floors.push([vitalsFlagLabel(state, flag, resident.vitals), VITALS_FLOOR[flag]]);
+  const longUp = up ? HOURS_UP_FLOORS.find(([n]) => hoursUp >= n) : undefined;
+  if (longUp) floors.push([`Up at night for ${hoursUp} hours in a row`, longUp[1]]);
   if (up && standing.fall >= UNSTEADY_UP_FALL) floors.push([UNSTEADY_UP_LABEL, UP_AT_NIGHT_FLOOR]);
   else if (up && resident.bedExitAlert) floors.push([BED_EXIT_LABEL, UP_AT_NIGHT_FLOOR]);
   const [floorLabel, floor] = floors.reduce<[string, number]>((a, b) => (b[1] > a[1] ? b : a), ['', 0]);

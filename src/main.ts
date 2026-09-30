@@ -34,6 +34,7 @@ import './style.css';
 let resident: Resident = ELEANOR;               // whose room this is
 let state: CurrentState = { ...ELEANOR.usual };
 let highStreak = 0;
+let hoursUp = 0;                               // consecutive night hours out of bed (during a run)
 let timelineEvents: TimelineEvent[] = [];
 let simSnapshots: SimulationSnapshot[] = [];
 let llmConfig: LLMConfig = loadLLMConfig();
@@ -373,7 +374,7 @@ function rerenderMessagePanels() {
 // ── Core Update (deterministic only — no LLM calls here) ───
 function update() {
   // Change from her usual drives the ladder, the halo and the explanation
-  const assessment = assess(state, resident);
+  const assessment = assess(state, resident, { hoursUp: playback ? hoursUp : undefined });
   const risks = assessment.alert;
   const intervention = selectIntervention(state, risks, highStreak, resident, assessment);
   lastAssessment = assessment;
@@ -808,6 +809,7 @@ function showHour(i: number) {
   timelineEvents = simSnapshots.flatMap(sn => sn.events);
   Object.assign(state, snap.state);
   highStreak = snap.highStreak; // same streak the simulation used, so the level matches
+  hoursUp = snap.hoursUp;
   simRunning = true;            // mid-run and reviewing an hour both keep LLM calls off
   syncSlidersFromState();
   syncWearablesUI();

@@ -41,9 +41,9 @@ describe('assess: change from her own normal', () => {
     expect(at(margaret, 19, { restlessness: 70 }).alert.overall).toBeGreaterThan(0);
   });
 
-  it("keeps Joseph's usual SpO2 quiet but flags a dip below 92", () => {
+  it("keeps Joseph's usual SpO2 quiet but flags a dip below his target of 88", () => {
     expect(at(joseph, 11).alert.overall).toBe(0);
-    expect(at(joseph, 11, { spO2: 91 }).alert.overall).toBeGreaterThanOrEqual(40);
+    expect(at(joseph, 11, { spO2: 87 }).alert.overall).toBeGreaterThanOrEqual(40);
   });
 
   it('escalates a resident who is up at night and very unsteady, whatever their normal', () => {
@@ -144,5 +144,42 @@ describe('final review fixes: scores in words', () => {
     const msg = selectIntervention(s, a.alert, 0, walter, a).staffMessage!;
     expect(msg).toMatch(/staff load high \(82\/100\)/i);
     expect(msg).not.toMatch(/\d%/);
+  });
+});
+
+describe('model refinements', () => {
+  it('does not blow a small change up just because her usual is already high (headroom floor 50)', () => {
+    // Walter up at night: his usual when up is ~70; 15 points less steady used to read 64
+    const a = at(walter, 3, { restlessness: 85, mobility: walter.usual.mobility - 15 });
+    expect(a.alert.fall).toBeLessThan(50);
+    for (const r of RESIDENTS) {
+      const b = at(r, 3, { restlessness: 85, mobility: r.usual.mobility - 25 });
+      expect(b.alert.fall, r.id).toBeLessThan(70);
+    }
+  });
+
+  it('escalates hours in a row out of bed at night, even without a bed-exit alert', () => {
+    const up = { ...usualStateAt(eleanor, 3), restlessness: 75 };
+    const level = (hoursUp: number) => {
+      const a = assess(up, eleanor, { hoursUp });
+      return selectIntervention(up, a.alert, 0, eleanor).level;
+    };
+    expect(level(1)).toBe(1);
+    expect(level(2)).toBeGreaterThanOrEqual(2);
+    expect(level(3)).toBeGreaterThanOrEqual(3);
+    expect(assess(up, eleanor, { hoursUp: 3 }).explanation.factors[0].factor).toMatch(/up at night for 3 hours/i);
+  });
+
+  it("uses Joseph's own oxygen targets (COPD): amber below 88, red below 85", () => {
+    const lvl = (spO2: number) => {
+      const s = { ...usualStateAt(joseph, 11), spO2 };
+      return selectIntervention(s, assess(s, joseph).alert, 0, joseph).level;
+    };
+    expect(lvl(90)).toBe(1);
+    expect(lvl(87)).toBe(3);
+    expect(lvl(84)).toBe(4);
+    // Everyone else keeps the default targets
+    const e = { ...usualStateAt(eleanor, 11), useWearables: true, spO2: 91 };
+    expect(selectIntervention(e, assess(e, eleanor).alert, 0, eleanor).level).toBe(3);
   });
 });
