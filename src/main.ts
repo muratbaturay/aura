@@ -11,7 +11,10 @@ import { simulate24h, startStateFor } from './simulation';
 import { createRng, randomSeed, parseSeed } from './rng';
 import { SCENARIOS } from './scenarios';
 import { haloView, scoreBarSegments } from './view';
-import { themeFor } from './theme';
+import { themeFor, partOfDay } from './theme';
+import { buildHTML } from './ui/template';
+import { createDrawer } from './ui/drawer';
+import { icons } from './ui/icons';
 import { renderComparisonChart, renderTimelineChart } from './chart';
 import {
   loadLLMConfig, saveLLMConfig, isLLMAvailable,
@@ -30,6 +33,9 @@ let lastLLMMessages: LLMGeneratedMessages | null = null;
 let simRunning = false;
 let runId = 0; // bumped by each run and by Reset; a playback loop stops when its id is stale
 let lastRun: { seed: number; start: CurrentState } | null = null; // for exact random-day replay
+let currentRun: { name: string; seed: number } | null = null; // shown in the header chip
+let selectedScenarioId = '';   // '' = random day
+let speedMs = 120;             // playback interval per simulated hour
 
 // Cached outputs for LLM panel re-renders without full update()
 let lastIntervention: InterventionOutput | null = null;
@@ -97,9 +103,16 @@ document.getElementById('btnSimulate')!.addEventListener('click', runSimulation)
 document.getElementById('btnReset')!.addEventListener('click', resetAll);
 document.getElementById('btnRandomize')!.addEventListener('click', randomize);
 
-// Scenario + seed controls
-const scenarioSelect = document.getElementById('scenarioSelect') as HTMLSelectElement;
+// Scenario studio drawer + story, seed and speed controls
 const seedInput = document.getElementById('seedInput') as HTMLInputElement;
+const studio = createDrawer(
+  document.getElementById('studio')!,
+  document.getElementById('studioBackdrop')!,
+  document.getElementById('btnStudio')!,
+  document.getElementById('page')!,
+);
+document.getElementById('btnStudio')!.addEventListener('click', () => studio.open());
+document.getElementById('btnStudioClose')!.addEventListener('click', () => studio.close());
 setupScenarioUI();
 
 // ── LLM Config UI Binding ───────────────────────────────────
@@ -335,7 +348,7 @@ function update() {
   lastExplanation = explanation;
   lastRisks = risks;
 
-  document.documentElement.dataset.theme = themeFor(state.timeOfDay, DEFAULT_BASELINE);
+  renderHeader();
   renderStatus(risks, intervention);
 
   // Determine message source and content
@@ -459,6 +472,17 @@ function renderLLMErrorState(msg: string) {
   }
 }
 
+/** Theme, clock and resident line follow the simulated time of day. */
+function renderHeader() {
+  const theme = themeFor(state.timeOfDay, DEFAULT_BASELINE);
+  document.documentElement.dataset.theme = theme;
+  document.getElementById('residentSub')!.textContent = theme === 'night' ? 'Care view · night display' : 'Care view';
+  document.getElementById('clockIcon')!.innerHTML = theme === 'night' ? icons.moon : icons.sun;
+  document.getElementById('clockTime')!.textContent = formatSliderVal('time', state.timeOfDay);
+  document.getElementById('clockPart')!.textContent = partOfDay(state.timeOfDay);
+  document.getElementById('dayTitle')!.textContent = theme === 'night' ? 'Tonight' : 'Today';
+}
+
 /** Update the status card in place (re-rendering would restart the halo's breathing). */
 function renderStatus(risks: RiskScores, intervention: InterventionOutput) {
   const card = document.getElementById('statusCard')!;
@@ -481,6 +505,17 @@ function renderStatus(risks: RiskScores, intervention: InterventionOutput) {
     document.getElementById(`${id}Band`)!.textContent = band;
     document.getElementById(`${id}Value`)!.textContent = String(Math.round(score));
   }
+
+  document.getElementById('ladder')!.querySelectorAll<HTMLElement>('.ladder-step').forEach(step => {
+    const n = Number(step.dataset.step);
+    step.classList.toggle('is-reached', n <= intervention.level);
+    step.classList.toggle('is-current', n === intervention.level);
+  });
+
+  document.getElementById('vitalsRow')!.hidden = !state.useWearables;
+  document.getElementById('wearablesNote')!.hidden = state.useWearables;
+  document.getElementById('vitalHr')!.textContent = String(Math.round(state.heartRate));
+  document.getElementById('vitalSpo2')!.textContent = String(+state.spO2.toFixed(1));
 }
 
 function renderEventFeed() {
@@ -502,30 +537,66 @@ function renderEventFeed() {
 
 // ── Simulation ──────────────────────────────────────────────
 function setupScenarioUI() {
-  scenarioSelect.innerHTML = '<option value="">Random day</option>' +
-    SCENARIOS.map(sc => `<option value="${sc.id}">${escapeHtml(sc.name)}</option>`).join('');
-  const describe = () => {
-    const scenario = SCENARIOS.find(sc => sc.id === scenarioSelect.value);
-    document.getElementById('scenarioDesc')!.textContent =
-      scenario?.description ?? 'Random drift from the current sliders.';
+  const LEVEL_FILL: Record<number, string> = { 1: 'var(--c-level-1)', 2: 'var(--c-level-2)', 3: 'var(--c-level-3)', 4: 'var(--c-level-4)' };
+  // Each story card previews its whole day at the default seed
+  const cards = [{ id: '', name: 'Random day', description: 'Drifts from the current sliders. Different every run.', meta: 'any seed', arc: null as number[] | null }]
+    .concat(SCENARIOS.map(sc => {
+      const levels = simulate24h(DEFAULT_BASELINE, defaultState(), { rng: createRng(sc.seed), scenario: sc })
+        .map(snap => snap.intervention.level);
+      return { id: sc.id, name: sc.name, description: sc.description, meta: `peaks at L${Math.max(...levels)} · seed ${sc.seed}`, arc: levels };
+    }));
+  const list = document.getElementById('storyList')!;
+  list.innerHTML = cards.map(c => `
+    <button type="button" class="story-card" data-id="${c.id}" aria-pressed="false">
+      <span class="story-card-head"><span class="story-card-name">${escapeHtml(c.name)}</span><span class="story-card-meta mono">${escapeHtml(c.meta)}</span></span>
+      <span class="story-card-desc">${escapeHtml(c.description)}</span>
+      <span class="story-arc" aria-hidden="true">${Array.from({ length: 24 }, (_, h) =>
+        `<span style="background:${c.arc ? LEVEL_FILL[c.arc[h]] : 'var(--ring-future)'}"></span>`).join('')}</span>
+    </button>`).join('');
+
+  const select = (id: string) => {
+    selectedScenarioId = id;
+    const scenario = SCENARIOS.find(sc => sc.id === id);
+    list.querySelectorAll<HTMLButtonElement>('.story-card').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.id === id)));
     seedInput.value = scenario ? String(scenario.seed) : '';
     document.getElementById('seedNote')!.textContent = '';
+    document.getElementById('btnSimulateLabel')!.textContent = scenario ? `Play ${scenario.name}` : 'Play a random day';
+    setSpeed(scenario ? 500 : 120);
   };
-  scenarioSelect.addEventListener('change', describe);
-  describe();
+  list.addEventListener('click', e => {
+    const card = (e.target as HTMLElement).closest<HTMLButtonElement>('.story-card');
+    if (card && !card.disabled) select(card.dataset.id ?? '');
+  });
+  document.getElementById('speedControl')!.addEventListener('click', e => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-speed]');
+    if (btn) setSpeed(Number(btn.dataset.speed));
+  });
+  document.getElementById('btnNewSeed')!.addEventListener('click', () => { seedInput.value = String(randomSeed()); });
+  select('');
 }
 
-/** Lock or unlock the controls a run would overwrite, and update the status chip. */
-function setRunning(on: boolean, chipLabel: string) {
+function setSpeed(ms: number) {
+  speedMs = ms;
+  document.querySelectorAll<HTMLButtonElement>('#speedControl [data-speed]').forEach(b =>
+    b.setAttribute('aria-checked', String(Number(b.dataset.speed) === ms)));
+}
+
+/** Lock or unlock the controls a run would overwrite, and update the header's story chip. */
+function setRunning(on: boolean, status: string) {
   simRunning = on;
-  document.querySelectorAll<HTMLInputElement>('.controls-panel .slider').forEach(el => { el.disabled = on; });
-  for (const id of ['wearToggle', 'scenarioSelect', 'seedInput', 'btnRandomize', 'btnSimulate']) {
+  document.querySelectorAll<HTMLInputElement>('.studio .slider').forEach(el => { el.disabled = on; });
+  document.querySelectorAll<HTMLButtonElement>('.story-card').forEach(el => { el.disabled = on; });
+  for (const id of ['wearToggle', 'seedInput', 'btnNewSeed', 'btnRandomize', 'btnSimulate']) {
     (document.getElementById(id) as HTMLInputElement | HTMLButtonElement).disabled = on;
   }
-  document.getElementById('btnSimulate')!.textContent = on ? 'Simulating\u2026' : 'Simulate 24h';
-  const simChip = document.getElementById('simStatusChip')!;
-  simChip.textContent = on ? `Running \u00b7 ${chipLabel}` : chipLabel;
-  simChip.className = on ? 'status-chip active' : 'status-chip';
+  const chip = document.getElementById('storyChip')!;
+  chip.hidden = !currentRun;
+  if (currentRun) {
+    document.getElementById('storyName')!.textContent = currentRun.name;
+    document.getElementById('storySeed')!.textContent = `seed ${currentRun.seed}`;
+    document.getElementById('storyStatus')!.textContent = status;
+    chip.classList.toggle('is-running', on);
+  }
 }
 
 function syncWearablesUI() {
@@ -535,14 +606,16 @@ function syncWearablesUI() {
 
 async function runSimulation() {
   const myRun = ++runId;
-  const scenario = SCENARIOS.find(sc => sc.id === scenarioSelect.value);
+  const scenario = SCENARIOS.find(sc => sc.id === selectedScenarioId);
   const seed = parseSeed(seedInput.value) ?? randomSeed();
+  studio.close();
+  currentRun = { name: scenario?.name ?? 'Random day', seed };
   timelineEvents = [];
   simSnapshots = [];
   highStreak = 0;
 
   // Lock out LLM for the entire simulation run
-  setRunning(true, scenario?.name ?? 'Random day');
+  setRunning(true, 'Running');
   stopLLMWork();
   lastLLMMessages = null;
   prevSignature = '';
@@ -563,7 +636,7 @@ async function runSimulation() {
     syncWearablesUI();
     update(); // LLM gated out by simRunning flag
 
-    await sleep(scenario ? 500 : 120); // stories play slowly enough to narrate
+    await sleep(speedMs);
   }
   if (myRun !== runId) return;
 
@@ -575,6 +648,7 @@ async function runSimulation() {
 
 function resetAll() {
   runId++; // stops any playback in progress
+  currentRun = null;
   state = defaultState();
   highStreak = 0;
   timelineEvents = [];
@@ -666,229 +740,4 @@ function escapeHtml(text: string): string {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
-}
-
-// ── HTML Template ───────────────────────────────────────────
-function buildHTML(): string {
-  return `
-<header class="app-header">
-  <div class="header-inner">
-    <div class="logo">
-      <div class="logo-mark">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" opacity="0.4"/>
-          <circle cx="12" cy="12" r="4"/>
-          <path d="M12 2v4M12 18v4M2 12h4M18 12h4" opacity="0.5"/>
-        </svg>
-      </div>
-      <span class="logo-text">AURA</span>
-    </div>
-    <div class="header-divider"></div>
-    <span class="header-subtitle">Ambient Care Simulator</span>
-    <div class="header-chips">
-      <span id="simStatusChip" class="status-chip">Idle</span>
-      <span id="llmActiveBadge" class="header-llm-badge hidden">LLM Active</span>
-    </div>
-  </div>
-</header>
-
-<main class="layout">
-  <!-- LEFT COLUMN: Controls -->
-  <aside class="controls-panel">
-    <h2 class="panel-title">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 20V10M18 20V4M6 20v-4"/></svg>
-      Scenario Controls
-    </h2>
-
-    <div class="section-header">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-      Time
-    </div>
-    <div class="control-group">
-      <label>Time of Day <span id="timeVal" class="slider-val"></span></label>
-      <input type="range" id="timeSlider" class="slider" />
-      <div class="slider-labels"><span>00:00</span><span>12:00</span><span>24:00</span></div>
-    </div>
-
-    <div class="section-header">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
-      Resident Signals
-    </div>
-    <div class="control-group">
-      <label>Mobility Stability <span id="mobilityVal" class="slider-val"></span></label>
-      <input type="range" id="mobilitySlider" class="slider" />
-    </div>
-    <div class="control-group">
-      <label>Restlessness <span id="restlessnessVal" class="slider-val"></span></label>
-      <input type="range" id="restlessnessSlider" class="slider" />
-    </div>
-    <div class="control-group">
-      <label>Speech Clarity Drift <span id="speechVal" class="slider-val"></span></label>
-      <input type="range" id="speechSlider" class="slider" />
-    </div>
-    <div class="control-group">
-      <label>Social Isolation Trend <span id="socialVal" class="slider-val"></span></label>
-      <input type="range" id="socialSlider" class="slider" />
-    </div>
-
-    <div class="section-header">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-      Wearables
-    </div>
-    <div class="control-group toggle-group">
-      <label class="toggle-label">
-        <input type="checkbox" id="wearToggle" />
-        <span class="toggle-switch"></span>
-        Enable Wearable Vitals
-      </label>
-    </div>
-    <div id="vitalsSection" class="vitals-section hidden">
-      <div class="control-group">
-        <label>Heart Rate <span id="hrVal" class="slider-val"></span></label>
-        <input type="range" id="hrSlider" class="slider" />
-      </div>
-      <div class="control-group">
-        <label>SpO2 <span id="spo2Val" class="slider-val"></span></label>
-        <input type="range" id="spo2Slider" class="slider" />
-      </div>
-    </div>
-
-    <div class="section-header">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
-      Staff
-    </div>
-    <div class="control-group">
-      <label>Staff Load <span id="staffLoadVal" class="slider-val"></span></label>
-      <input type="range" id="staffLoadSlider" class="slider" />
-    </div>
-
-    <div class="section-header">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>
-      Scenario
-    </div>
-    <div class="control-group">
-      <label for="scenarioSelect">Story</label>
-      <select id="scenarioSelect" class="text-input"></select>
-      <p id="scenarioDesc" class="scenario-desc"></p>
-    </div>
-    <div class="control-group">
-      <label for="seedInput">Seed</label>
-      <input type="text" inputmode="numeric" id="seedInput" class="text-input" placeholder="new each run" autocomplete="off" />
-      <p id="seedNote" class="scenario-desc"></p>
-    </div>
-
-    <div class="btn-row">
-      <button id="btnSimulate" class="btn btn-primary">Simulate 24h</button>
-      <button id="btnRandomize" class="btn btn-secondary">Randomize</button>
-      <button id="btnReset" class="btn btn-ghost">Reset</button>
-    </div>
-
-    <!-- LLM Configuration -->
-    <div class="llm-config-section">
-      <div class="section-header">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-        LLM Messaging
-      </div>
-      <div class="llm-header-row">
-        <label class="toggle-label">
-          <input type="checkbox" id="llmToggle" />
-          <span class="toggle-switch"></span>
-          Adaptive Messages
-        </label>
-        <button id="btnRefreshLLM" class="btn btn-secondary btn-icon hidden" title="Refresh LLM message now">&#x21bb;</button>
-      </div>
-
-      <div class="llm-status-row">
-        <span id="llmCallStatus" class="llm-call-status llm-call-idle">LLM: idle</span>
-        <span id="llmCallCount" class="llm-call-count"></span>
-      </div>
-
-      <div id="llmConfigBody" class="llm-config-body hidden">
-        <div class="control-group">
-          <label>API Key</label>
-          <input type="password" id="llmApiKey" class="text-input" placeholder="sk-..." autocomplete="off" />
-        </div>
-        <div class="control-group">
-          <label>Base URL</label>
-          <input type="text" id="llmBaseUrl" class="text-input" placeholder="https://api.openai.com/v1" />
-        </div>
-        <div class="control-group">
-          <label>Model</label>
-          <input type="text" id="llmModel" class="text-input" placeholder="gpt-4o-mini" />
-        </div>
-        <div class="llm-config-footer">
-          <button id="btnTestLLM" class="btn btn-secondary btn-sm">Test Connection</button>
-          <span id="llmStatus" class="llm-status"></span>
-        </div>
-        <p class="llm-hint">Key stored locally. Compatible with OpenAI, Ollama, LM Studio.</p>
-      </div>
-    </div>
-  </aside>
-
-  <!-- RIGHT COLUMN: Outputs -->
-  <section class="output-panel">
-    <section id="statusCard" class="card status-card" aria-label="Current state">
-      <div class="halo">
-        <div class="halo-ring halo-ring-outer" aria-hidden="true"></div>
-        <div class="halo-ring halo-ring-mid" aria-hidden="true"></div>
-        <div class="halo-ring halo-ring-inner" aria-hidden="true"></div>
-        <div class="halo-core">
-          <span id="haloScore" class="halo-score"></span>
-          <span class="halo-caption">Overall urgency</span>
-        </div>
-      </div>
-      <div class="status-body">
-        <div class="status-level">
-          <span id="statusPill" class="status-pill"></span>
-          <span id="statusLabel" class="status-label"></span>
-        </div>
-        <div class="domain-list">
-          <div class="domain-row">
-            <div class="domain-head"><span class="domain-name">Fall risk</span><span id="fallBand" class="domain-band"></span><span id="fallValue" class="domain-value"></span></div>
-            <div class="domain-track"><div id="fallFill" class="domain-fill"></div><span class="band-tick" style="left:40%"></span><span class="band-tick" style="left:70%"></span></div>
-          </div>
-          <div class="domain-row">
-            <div class="domain-head"><span class="domain-name">Cognitive concern</span><span id="cognitiveBand" class="domain-band"></span><span id="cognitiveValue" class="domain-value"></span></div>
-            <div class="domain-track"><div id="cognitiveFill" class="domain-fill"></div><span class="band-tick" style="left:40%"></span><span class="band-tick" style="left:70%"></span></div>
-          </div>
-          <div class="domain-row">
-            <div class="domain-head"><span class="domain-name">Loneliness</span><span id="lonelinessBand" class="domain-band"></span><span id="lonelinessValue" class="domain-value"></span></div>
-            <div class="domain-track"><div id="lonelinessFill" class="domain-fill"></div><span class="band-tick" style="left:40%"></span><span class="band-tick" style="left:70%"></span></div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <div class="card">
-      <h3 class="card-title">Intervention Output</h3>
-      <div id="interventionContent"></div>
-    </div>
-
-    <div class="card">
-      <h3 class="card-title">Why This Decision?</h3>
-      <div id="explanationContent"></div>
-    </div>
-
-    <div class="charts-row">
-      <div class="card chart-card">
-        <h3 class="card-title">Baseline vs Current</h3>
-        <div id="comparisonChart"></div>
-      </div>
-      <div class="card chart-card">
-        <h3 class="card-title">24h Risk Trends</h3>
-        <div id="timelineChart"></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <h3 class="card-title">Event Timeline</h3>
-      <div id="eventFeed" class="event-feed"></div>
-    </div>
-  </section>
-</main>
-
-<footer class="app-footer">
-  <p>(c)2026 - Murat Baturay / AURA-Senior &mdash; Prototype for demonstration only. Not a medical device.</p>
-</footer>
-  `;
 }

@@ -6,38 +6,17 @@
 
 .card {
   background: var(--c-bg-raised);
-  border: 1px solid var(--c-border);
-  border-radius: var(--r-lg);
-  padding: var(--sp-5);
-  box-shadow: var(--shadow-sm);
-  transition: box-shadow var(--dur-normal) var(--ease-out),
-              transform var(--dur-normal) var(--ease-out);
-}
-
-.card:hover {
-  box-shadow: var(--shadow-md);
+  border-radius: var(--r-card);
+  padding: 28px;
 }
 
 .card-title {
-  font-size: var(--fs-xs);
+  font-size: 12px;
   font-weight: var(--fw-semibold);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--c-text-muted);
+  letter-spacing: 0.08em;
+  color: var(--c-text-dim);
   margin: 0 0 var(--sp-4);
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-}
-
-.card-title::before {
-  content: '';
-  display: block;
-  width: 3px;
-  height: 14px;
-  border-radius: 2px;
-  background: var(--c-teal);
-  flex-shrink: 0;
 }
 
 /* ── Button ──────────────────────────────────────────────── */
@@ -240,18 +219,9 @@
   --halo-color: var(--c-level-1);
   --halo-period: 8s;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: var(--sp-8);
-}
-
-@media (max-width: 700px) {
-  .status-card {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .status-card .halo {
-    align-self: center;
-  }
+  gap: 20px;
 }
 
 .halo {
@@ -297,8 +267,9 @@
 }
 
 .halo-score {
-  font-size: 44px;
-  font-weight: var(--fw-semibold);
+  font-family: var(--ff-display);
+  font-size: 48px;
+  font-weight: 400;
   line-height: 1;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
@@ -320,19 +291,111 @@
   .halo-ring { animation: none; }
 }
 
-.status-body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-5);
-}
-
 .status-level {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  flex-wrap: wrap;
-  gap: var(--sp-3);
+  gap: var(--sp-2);
+}
+
+.ladder {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.ladder-step {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ladder-bar {
+  height: 6px;
+  border-radius: 3px;
+  box-sizing: border-box;
+  border: 1px solid var(--c-border);
+}
+
+.ladder-step.is-reached .ladder-bar { border: none; }
+.ladder-step.is-reached[data-step="1"] .ladder-bar { background: var(--c-level-1); }
+.ladder-step.is-reached[data-step="2"] .ladder-bar { background: var(--c-level-2); }
+.ladder-step.is-reached[data-step="3"] .ladder-bar { background: var(--c-level-3); }
+.ladder-step.is-reached[data-step="4"] .ladder-bar { background: var(--c-level-4); }
+
+.ladder-step.is-current .ladder-bar {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--halo-color) 30%, transparent);
+}
+
+.ladder-label {
+  font-size: var(--fs-xs);
+  color: var(--c-text-dim);
+}
+
+.ladder-step.is-current .ladder-label {
+  font-weight: var(--fw-bold);
+  color: var(--c-text);
+}
+
+.status-divider {
+  width: 100%;
+  height: 1px;
+  background: var(--c-divider);
+}
+
+.status-card .domain-list {
+  width: 100%;
+}
+
+.vitals-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-2);
+}
+
+.vitals-row[hidden] {
+  display: none;
+}
+
+.vital {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 10px 12px;
+  border-radius: var(--r-lg);
+  background: var(--c-bg-inset);
+  color: var(--c-text-muted);
+}
+
+.vital-value {
+  font-size: 15px;
+  color: var(--c-text);
+}
+
+.vital-name {
+  font-size: 12px;
+  font-weight: var(--fw-semibold);
+}
+
+.vital-unit {
+  font-size: 12px;
+  color: var(--c-text-dim);
+}
+
+.status-note {
+  align-self: flex-start;
+  margin: 0;
+  font-size: 12px;
+  color: var(--c-text-dim);
+}
+
+.status-note[hidden] {
+  display: none;
 }
 
 .status-pill {
@@ -349,8 +412,10 @@
 }
 
 .status-label {
-  font-size: var(--fs-xl);
-  font-weight: var(--fw-semibold);
+  font-family: var(--ff-display);
+  font-size: 30px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
   color: var(--c-text);
 }
 
