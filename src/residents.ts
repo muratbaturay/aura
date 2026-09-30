@@ -6,7 +6,7 @@ export interface Resident {
   name: string;
   age: number;
   summary: string;           // one line for the switcher
-  contact: string;           // who the gentle prompt suggests calling
+  contact: string;           // who a gentle prompt suggests calling, as in "Your friend Martha"
   baseline: ResidentBaseline;
   usual: CurrentState;       // her normal waking levels (timeOfDay unused)
   nightWake: number;         // chance per night hour of getting up, on a random day
@@ -38,25 +38,25 @@ function resident(r: Omit<Resident, 'baseline' | 'usual'> & {
 
 export const RESIDENTS: Resident[] = [
   resident({
-    id: 'eleanor', name: 'Eleanor', age: 82, contact: 'Martha',
+    id: 'eleanor', name: 'Eleanor', age: 82, contact: 'friend Martha',
     summary: 'Independent and steady; sleeps well.',
     usual: { mobility: 70, restlessness: 25, speechDrift: 20, socialIsolation: 30, useWearables: false, heartRate: 72, spO2: 97 },
     vars: [100, 64, 49, 81], nightWake: 0.08, eveningRestlessness: 0,
   }),
   resident({
-    id: 'walter', name: 'Walter', age: 88, contact: 'his daughter Ruth',
+    id: 'walter', name: 'Walter', age: 88, contact: 'daughter Ruth',
     summary: 'Frail and unsteady, history of falls; often up at night.',
     usual: { mobility: 42, restlessness: 35, speechDrift: 22, socialIsolation: 35, useWearables: false, heartRate: 76, spO2: 96 },
     vars: [121, 81, 49, 81], nightWake: 0.22, eveningRestlessness: 0,
   }),
   resident({
-    id: 'margaret', name: 'Margaret', age: 79, contact: 'her son David',
+    id: 'margaret', name: 'Margaret', age: 79, contact: 'son David',
     summary: 'Early dementia; more restless in the evening.',
     usual: { mobility: 62, restlessness: 32, speechDrift: 45, socialIsolation: 30, useWearables: false, heartRate: 74, spO2: 97 },
     vars: [100, 81, 64, 81], nightWake: 0.14, eveningRestlessness: 10,
   }),
   resident({
-    id: 'joseph', name: 'Joseph', age: 85, contact: 'his friend Samuel',
+    id: 'joseph', name: 'Joseph', age: 85, contact: 'friend Samuel',
     summary: 'Recently widowed and withdrawn; COPD, wears a monitor.',
     usual: { mobility: 58, restlessness: 20, speechDrift: 18, socialIsolation: 62, useWearables: true, heartRate: 84, spO2: 93 },
     vars: [100, 49, 49, 100], nightWake: 0.08, eveningRestlessness: 0,

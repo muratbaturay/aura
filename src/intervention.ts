@@ -1,6 +1,7 @@
 import type { CurrentState, RiskScores, InterventionOutput, InterventionLevel, VitalsFlag, RiskDomain } from './types';
 import { urgencyBand, vitalsFlag, RISK_DOMAINS } from './risk';
 import { isNightHour, DEFAULT_BASELINE } from './baseline';
+import type { Resident } from './residents';
 
 const DOMAIN_LABELS: Record<RiskDomain, string> = {
   fall: 'Fall risk',
@@ -15,7 +16,8 @@ function vitalsText(state: CurrentState): string {
 export function selectIntervention(
   state: CurrentState,
   risks: RiskScores,
-  highStreak: number        // consecutive High-overall hours before now
+  highStreak: number,       // consecutive High-overall hours before now
+  resident?: Resident       // personalises the gentle prompt (who to call)
 ): InterventionOutput {
   const night = isNightHour(state.timeOfDay, DEFAULT_BASELINE);
   const vitals = vitalsFlag(state);
@@ -52,7 +54,8 @@ export function selectIntervention(
     trigger = 'Level 1: overall urgency is Low (under 40).';
   }
 
-  return { ...buildIntervention(level, state, risks, night, vitals, highDomains), trigger };
+  const contact = resident?.contact ?? 'friend Martha';
+  return { ...buildIntervention(level, state, risks, night, vitals, highDomains, contact), trigger };
 }
 
 function buildIntervention(
@@ -61,11 +64,12 @@ function buildIntervention(
   risks: RiskScores,
   night: boolean,
   vitals: VitalsFlag,
-  highDomains: RiskDomain[]
+  highDomains: RiskDomain[],
+  contact: string
 ): Omit<InterventionOutput, 'trigger'> {
   const hour = Math.floor(state.timeOfDay);
   const timeLabel = `${hour.toString().padStart(2, '0')}:${Math.floor((state.timeOfDay % 1) * 60).toString().padStart(2, '0')}`;
-  const domainText = (ds: RiskDomain[]) => ds.map(d => `${DOMAIN_LABELS[d]} High (${Math.round(risks[d])}%)`).join(', ');
+  const domainText = (ds: RiskDomain[]) => ds.map(d => `${DOMAIN_LABELS[d]} High (${Math.round(risks[d])})`).join(', ');
   const staffNote = state.staffLoad > 65
     ? ` Staff load high (${Math.round(state.staffLoad)}%): prioritize accordingly.`
     : '';
@@ -85,7 +89,7 @@ function buildIntervention(
     case 2: {
       const driver = RISK_DOMAINS.reduce((a, b) => (risks[b] > risks[a] ? b : a));
       const resMsg = {
-        loneliness: `Good ${night ? 'evening' : 'afternoon'}! Your friend Martha mentioned she'd love to chat — would you like to give her a call?`,
+        loneliness: `Good ${night ? 'evening' : 'afternoon'}! Your ${contact} mentioned they'd love to chat — would you like to give them a call?`,
         fall: `Just a gentle reminder: take your time if you're getting up. The path light is on for you.`,
         cognitive: `Just so you know, it's ${partOfDay(hour)} and everything is just as it should be. Your things are right where you left them.`,
       }[driver];
@@ -108,8 +112,8 @@ function buildIntervention(
         whyStaff = `${domainText(highDomains)} — ${night ? 'nighttime' : 'daytime'}.`;
       } else {
         const elevated = RISK_DOMAINS.filter(d => urgencyBand(risks[d]) !== 'Low')
-          .map(d => `${DOMAIN_LABELS[d].toLowerCase()} ${Math.round(risks[d])}%`).join(', ');
-        whyStaff = `Several concerns elevated together (${elevated}; overall ${Math.round(risks.overall)}%).`;
+          .map(d => `${DOMAIN_LABELS[d].toLowerCase()} ${Math.round(risks[d])}`).join(', ');
+        whyStaff = `Several concerns elevated together (${elevated}; overall ${Math.round(risks.overall)}).`;
       }
       return {
         level: 3,
@@ -129,7 +133,7 @@ function buildIntervention(
       } else if (highDomains.length >= 1 && vitals === 'amber') {
         whyEscalate = `${domainText(highDomains)} with borderline vitals (${vitalsText(state)}). Prompt attention needed.`;
       } else {
-        whyEscalate = `Overall urgency High for 3+ hours in a row (now ${Math.round(risks.overall)}%). Prompt attention needed.`;
+        whyEscalate = `Overall urgency High for 3+ hours in a row (now ${Math.round(risks.overall)}). Prompt attention needed.`;
       }
       return {
         level: 4,

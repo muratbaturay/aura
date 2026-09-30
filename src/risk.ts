@@ -11,10 +11,10 @@ function clamp(v: number, lo = 0, hi = 100): number {
 export const RISK_DOMAINS: RiskDomain[] = ['fall', 'cognitive', 'loneliness'];
 
 /** Weight of the second-worst domain in the overall score. */
-const SECOND_DOMAIN_WEIGHT = 0.2;
+export const SECOND_DOMAIN_WEIGHT = 0.2;
 
 /** Minimum overall score while a vitals flag is raised. */
-const VITALS_FLOOR: Record<VitalsFlag, number> = { none: 0, amber: 40, red: 70 };
+export const VITALS_FLOOR: Record<VitalsFlag, number> = { none: 0, amber: 40, red: 70 };
 
 /**
  * Additive parts of each domain score (before clamping), tagged with the
@@ -83,7 +83,7 @@ function sumTerms(terms: RiskTerm[]): number {
 }
 
 /** Domains ordered worst first (ties keep RISK_DOMAINS order). */
-function rankDomains(scores: Record<RiskDomain, number>): RiskDomain[] {
+export function rankDomains(scores: Record<RiskDomain, number>): RiskDomain[] {
   return [...RISK_DOMAINS].sort((a, b) => scores[b] - scores[a]);
 }
 
@@ -138,7 +138,7 @@ const SIGNAL_LABELS: Record<RiskSignal, string> = {
 
 // No live readings in the label: factor names feed the LLM change-detection
 // signature, and the trigger line already shows the values.
-function vitalsFlagLabel(state: CurrentState, flag: VitalsFlag): string {
+export function vitalsFlagLabel(state: CurrentState, flag: VitalsFlag): string {
   const parts: string[] = [];
   if (state.spO2 < 92) parts.push('blood oxygen');
   if (state.heartRate > 110) parts.push('heart rate');
@@ -152,6 +152,31 @@ function vitalsFlagLabel(state: CurrentState, flag: VitalsFlag): string {
  * to its capped score, and a vitals floor appears as its own factor.
  * Factor points always sum to risks.overall.
  */
+/**
+ * Each domain's score split by signal label, scaled so a capped domain's parts
+ * add up to its capped score (the same attribution buildExplanation uses).
+ */
+export function domainContributions(
+  state: CurrentState,
+  deviations: Deviations,
+  baseline: ResidentBaseline,
+  risks: RiskScores,
+): Record<RiskDomain, Map<string, number>> {
+  const terms = riskTerms(state, deviations, baseline);
+  const out = {} as Record<RiskDomain, Map<string, number>>;
+  for (const d of RISK_DOMAINS) {
+    const raw = sumTerms(terms[d]);
+    const capScale = raw > 0 ? risks[d] / raw : 0;
+    const m = new Map<string, number>();
+    for (const t of terms[d]) {
+      const label = SIGNAL_LABELS[t.signal];
+      m.set(label, (m.get(label) ?? 0) + t.points * capScale);
+    }
+    out[d] = m;
+  }
+  return out;
+}
+
 export function buildExplanation(
   state: CurrentState,
   deviations: Deviations,
