@@ -11,7 +11,7 @@
 }
 
 .card-title {
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: var(--fw-semibold);
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -245,19 +245,20 @@
 }
 
 .halo-ring-mid {
-  inset: 1.25rem;
+  inset: 1rem;
   --ring-mix: 22%;
   animation: halo-breathe var(--halo-period) ease-in-out calc(var(--halo-period) * 0.15) infinite;
 }
 
 .halo-ring-inner {
-  inset: 2.5rem;
+  inset: 2rem;
   --ring-mix: 32%;
 }
 
 .halo-core {
   position: absolute;
-  inset: 3.5rem;
+  inset: 3rem;
+  padding: 0 0.875rem;
   border-radius: 50%;
   background: var(--c-bg-raised);
   border: 2px solid var(--halo-color);
@@ -280,7 +281,7 @@
 .halo-caption {
   font-size: var(--fs-xs);
   text-align: center;
-  white-space: nowrap;
+  line-height: 1.2;
   color: var(--c-text-muted);
   margin-top: var(--sp-1);
 }
@@ -376,24 +377,24 @@
 }
 
 .vital-value {
-  font-size: 15px;
+  font-size: 0.9375rem;
   color: var(--c-text);
 }
 
 .vital-name {
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: var(--fw-semibold);
 }
 
 .vital-unit {
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--c-text-dim);
 }
 
 .status-note {
   align-self: flex-start;
   margin: 0;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--c-text-dim);
 }
 
@@ -416,7 +417,7 @@
 
 .status-label {
   font-family: var(--ff-display);
-  font-size: 30px;
+  font-size: 1.875rem;
   font-weight: 600;
   letter-spacing: -0.03em;
   color: var(--c-text);
@@ -506,7 +507,7 @@
 /* ── Source Badges ────────────────────────────────────────── */
 
 .source-badge {
-  font-size: 9px;
+  font-size: 0.5625rem;
   font-weight: var(--fw-bold);
   text-transform: uppercase;
   letter-spacing: 0.04em;

@@ -74,7 +74,7 @@ export function renderTimelineChart(
   snapshots: SimulationSnapshot[]
 ): void {
   if (snapshots.length === 0) {
-    container.innerHTML = '<p style="color:var(--c-text-dim);font-size:13px;">Run a 24h simulation to see trends.</p>';
+    container.innerHTML = '<p style="color:var(--c-text-dim);font-size:0.8125rem;">Run a 24h simulation to see trends.</p>';
     return;
   }
 
