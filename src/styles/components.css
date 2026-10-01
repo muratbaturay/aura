@@ -224,10 +224,11 @@
   gap: 20px;
 }
 
+/* Sized in rem so the rings grow with the text inside them (larger default font sizes). */
 .halo {
   position: relative;
-  width: 220px;
-  height: 220px;
+  width: 13.75rem;
+  height: 13.75rem;
   flex-shrink: 0;
 }
 
@@ -244,19 +245,19 @@
 }
 
 .halo-ring-mid {
-  inset: 20px;
+  inset: 1.25rem;
   --ring-mix: 22%;
   animation: halo-breathe var(--halo-period) ease-in-out calc(var(--halo-period) * 0.15) infinite;
 }
 
 .halo-ring-inner {
-  inset: 40px;
+  inset: 2.5rem;
   --ring-mix: 32%;
 }
 
 .halo-core {
   position: absolute;
-  inset: 56px;
+  inset: 3.5rem;
   border-radius: 50%;
   background: var(--c-bg-raised);
   border: 2px solid var(--halo-color);
@@ -268,7 +269,7 @@
 
 .halo-score {
   font-family: var(--ff-display);
-  font-size: 48px;
+  font-size: 3rem;
   font-weight: 500;
   line-height: 1;
   letter-spacing: -0.04em;
@@ -278,6 +279,8 @@
 
 .halo-caption {
   font-size: var(--fs-xs);
+  text-align: center;
+  white-space: nowrap;
   color: var(--c-text-muted);
   margin-top: var(--sp-1);
 }
